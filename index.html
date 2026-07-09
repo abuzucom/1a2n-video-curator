@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Curator</title>
+<style>
+  :root {
+    --bg: #111318;
+    --panel: #1c1f26;
+    --text: #e8eaf0;
+    --muted: #8b90a0;
+    --keep: #2e9e5b;
+    --keep-hover: #37b96c;
+    --reject: #c94040;
+    --reject-hover: #e05252;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+    background: var(--panel);
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  #filename {
+    color: var(--muted);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 100px;
+  }
+  #counter { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    position: relative;
+  }
+  video {
+    max-width: 100%;
+    max-height: 100%;
+    background: #000;
+    outline: none;
+  }
+  #message {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 24px;
+    background: var(--bg);
+  }
+  #message.hidden, video.hidden { display: none; }
+  #message h2 { margin: 0; font-weight: 600; }
+  #message p { color: var(--muted); margin: 0; max-width: 480px; }
+  #folder-form { display: flex; gap: 8px; width: min(560px, 90%); }
+  #folder-input {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #33384a;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+  }
+  footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--panel);
+  }
+  button {
+    border: none;
+    border-radius: 10px;
+    padding: 14px 34px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    background: #3a3f4e;
+  }
+  button:hover { filter: brightness(1.15); }
+  button:disabled { opacity: 0.4; cursor: default; filter: none; }
+  button.small { padding: 10px 16px; font-size: 13px; font-weight: 500; }
+  #btn-keep { background: var(--keep); }
+  #btn-keep:hover { background: var(--keep-hover); filter: none; }
+  #btn-reject { background: var(--reject); }
+  #btn-reject:hover { background: var(--reject-hover); filter: none; }
+  kbd {
+    background: rgba(255,255,255,0.14);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    margin-left: 8px;
+  }
+  #flash {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 42px;
+    font-weight: 700;
+    padding: 18px 40px;
+    border-radius: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  #flash.show { opacity: 1; }
+  #flash.keep { background: rgba(46,158,91,0.9); }
+  #flash.reject { background: rgba(201,64,64,0.9); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Video Curator</h1>
+    <span id="filename"></span>
+    <span id="counter"></span>
+  </header>
+
+  <main>
+    <video id="player" class="hidden" controls autoplay loop></video>
+    <div id="message">
+      <h2 id="msg-title">Loading…</h2>
+      <p id="msg-body"></p>
+      <form id="folder-form" style="display:none">
+        <input id="folder-input" type="text" placeholder="C:\path\to\your\videos" spellcheck="false">
+        <button type="submit" class="small">Start</button>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    <button id="btn-reject">Reject <kbd>R / &larr;</kbd></button>
+    <button id="btn-undo" class="small" disabled>Undo <kbd>U</kbd></button>
+    <button id="btn-keep">Keep <kbd>K / &rarr;</kbd></button>
+  </footer>
+
+  <div id="flash"></div>
+
+<script>
+const player = document.getElementById('player');
+const message = document.getElementById('message');
+const msgTitle = document.getElementById('msg-title');
+const msgBody = document.getElementById('msg-body');
+const folderForm = document.getElementById('folder-form');
+const folderInput = document.getElementById('folder-input');
+const filenameEl = document.getElementById('filename');
+const counterEl = document.getElementById('counter');
+const btnKeep = document.getElementById('btn-keep');
+const btnReject = document.getElementById('btn-reject');
+const btnUndo = document.getElementById('btn-undo');
+const flash = document.getElementById('flash');
+
+let current = null;
+let busy = false;
+
+function showMessage(title, body, showForm = false) {
+  player.classList.add('hidden');
+  player.pause();
+  message.classList.remove('hidden');
+  msgTitle.textContent = title;
+  msgBody.textContent = body;
+  folderForm.style.display = showForm ? 'flex' : 'none';
+  if (showForm) folderInput.focus();
+}
+
+function showFlash(action) {
+  flash.textContent = action === 'keep' ? 'KEPT' : 'REJECTED';
+  flash.className = 'show ' + action;
+  setTimeout(() => flash.classList.remove('show'), 350);
+}
+
+function updateHud(data) {
+  const total = data.remaining + data.reviewed;
+  counterEl.textContent = `${data.reviewed} reviewed · ${data.remaining} left of ${total}`;
+  btnUndo.disabled = !data.canUndo;
+}
+
+async function api(path, body) {
+  const res = await fetch(path, body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : undefined);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function loadNext() {
+  const data = await api('/api/next');
+  updateHud(data);
+  current = data.file;
+  if (!current) {
+    filenameEl.textContent = '';
+    showMessage('All done \u{1F389}', 'Every video in this folder has been reviewed. Kept videos stayed in place; rejected ones are in the _rejected subfolder.');
+    return;
+  }
+  filenameEl.textContent = current;
+  message.classList.add('hidden');
+  player.classList.remove('hidden');
+  player.src = '/video?f=' + encodeURIComponent(current);
+  player.play().catch(() => {});
+}
+
+async function decide(action) {
+  if (!current || busy) return;
+  busy = true;
+  try {
+    showFlash(action);
+    await api('/api/decide', { file: current, action });
+    await loadNext();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    busy = false;
+  }
+}
+
+async function undo() {
+  if (busy || btnUndo.disabled) return;
+  busy = true;
+  try {
+    await api('/api/undo', {});
+    await loadNext();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    busy = false;
+  }
+}
+
+btnKeep.addEventListener('click', () => decide('keep'));
+btnReject.addEventListener('click', () => decide('reject'));
+btnUndo.addEventListener('click', undo);
+
+player.addEventListener('error', () => {
+  if (!current) return;
+  filenameEl.textContent = current + ' (cannot play in browser — keep or reject by filename, or undo)';
+});
+
+folderForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const folder = folderInput.value.trim();
+  if (!folder) return;
+  try {
+    await api('/api/folder', { folder });
+    await loadNext();
+  } catch (err) {
+    msgBody.textContent = err.message;
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target === folderInput) return;
+  switch (e.key.toLowerCase()) {
+    case 'k': case 'arrowright': e.preventDefault(); decide('keep'); break;
+    case 'r': case 'arrowleft': e.preventDefault(); decide('reject'); break;
+    case 'u': e.preventDefault(); undo(); break;
+    case ' ':
+      e.preventDefault();
+      if (player.paused) player.play(); else player.pause();
+      break;
+  }
+});
+
+(async function init() {
+  try {
+    const status = await api('/api/status');
+    if (!status.folder) {
+      showMessage('Choose a folder', 'Paste the full path of the folder containing your videos.', true);
+      return;
+    }
+    updateHud(status);
+    await loadNext();
+  } catch (err) {
+    showMessage('Error', err.message);
+  }
+})();
+</script>
+</body>
+</html>

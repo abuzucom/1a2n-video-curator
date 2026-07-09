@@ -1,0 +1,17 @@
+# Local tooling / editor
+.claude/
+.vscode/
+.idea/
+
+# Node (no runtime deps, but just in case)
+node_modules/
+npm-debug.log*
+
+# OS cruft
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Curation state (lives in the video folder, but never commit it by accident)
+.video-curator-progress.json
+_rejected/
