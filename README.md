@@ -1,8 +1,7 @@
 # Video Curator
 
 A local, zero-dependency web app for triaging a folder of videos. It plays them
-in shuffled order; you press **Keep** or **Reject** on each, and it records
-progress so you can stop and resume later.
+in shuffled order; you press **Keep** or **Reject** on each.
 
 - **Keep** — leaves the file where it is.
 - **Reject** — moves the file into a `_rejected` subfolder.
@@ -50,10 +49,12 @@ the next one loads.
 ## How it works
 
 The server streams videos with HTTP range support and exposes a small JSON API
-(`/api/status`, `/api/next`, `/api/decide`, `/api/undo`, `/api/reset`). Progress
-lives in `.video-curator-progress.json` inside the video folder, so
-already-reviewed files are skipped on the next run. Delete that file (or POST
-`/api/reset`) to start over.
+(`/api/status`, `/api/next`, `/api/decide`, `/api/undo`, `/api/reset`). While
+running, it tracks decisions in a `.video-curator-progress.json` file inside the
+video folder so it can skip already-reviewed videos during the session. That
+file is removed automatically when the server stops (closing the browser tab
+shuts it down within seconds), so nothing is left in your folder and progress
+does not carry across runs.
 
 ## Notes
 

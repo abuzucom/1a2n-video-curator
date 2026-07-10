@@ -77,6 +77,21 @@ function saveProgress(progress) {
   fs.writeFileSync(progressPath(), JSON.stringify(progress, null, 2));
 }
 
+// Delete the session's progress file on shutdown. Constrained to exactly that
+// one file inside the chosen folder: never a directory, symlink, or video.
+function cleanupProgress() {
+  const folder = state.folder;
+  if (!folder) return;
+  const target = path.join(folder, PROGRESS_FILE);
+  if (path.basename(target) !== PROGRESS_FILE) return;                       // exact name
+  if (path.dirname(path.resolve(target)) !== path.resolve(folder)) return;   // inside folder only
+  try {
+    const st = fs.lstatSync(target);   // lstat: never follow a symlink
+    if (!st.isFile()) return;          // never a directory/symlink/device
+    fs.unlinkSync(target);             // one file only, never recursive
+  } catch {}
+}
+
 function shuffle(items) {
   for (let i = items.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -311,6 +326,13 @@ if (state.folder) {
   const info = scanFolder();
   console.log(`Folder: ${state.folder} (${info.remaining} to review, ${info.reviewed} already done)`);
 }
+
+// Remove the progress file whenever the process exits (ping-timeout shutdown,
+// browser close, Ctrl+C). The exit handler is the cross-platform path; SIGTERM
+// is a no-op on Windows but harmless to listen for.
+process.on('exit', cleanupProgress);
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Video Curator running at http://localhost:${PORT}`);
