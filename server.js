@@ -72,20 +72,20 @@ function saveProgress(progress) {
   fs.writeFileSync(progressPath(), JSON.stringify(progress, null, 2));
 }
 
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    [items[i], items[j]] = [items[j], items[i]];
   }
-  return arr;
+  return items;
 }
 
 // Scan folder, drop already-reviewed files, shuffle the rest into the queue.
 function scanFolder() {
   const progress = loadProgress();
   const files = fs.readdirSync(state.folder, { withFileTypes: true })
-    .filter(d => d.isFile() && VIDEO_EXTS.has(path.extname(d.name).toLowerCase()))
-    .map(d => d.name)
+    .filter(entry => entry.isFile() && VIDEO_EXTS.has(path.extname(entry.name).toLowerCase()))
+    .map(entry => entry.name)
     .filter(name => !(name in progress.reviewed));
   state.queue = shuffle(files);
   state.history = [];
@@ -94,38 +94,38 @@ function scanFolder() {
 
 function safeJoin(base, name) {
   const resolved = path.resolve(base, path.basename(name));
-  const rel = path.relative(base, resolved);
-  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('bad path');
+  const relativePath = path.relative(base, resolved);
+  if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) throw new Error('bad path');
   return resolved;
 }
 
-function json(res, code, obj) {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(obj));
+function json(res, statusCode, payload) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
 }
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    let size = 0;
+    let rawBody = '';
+    let byteCount = 0;
     let aborted = false;
-    req.on('data', c => {
+    req.on('data', chunk => {
       if (aborted) return;
-      size += c.length;
-      if (size > MAX_BODY_BYTES) {
+      byteCount += chunk.length;
+      if (byteCount > MAX_BODY_BYTES) {
         aborted = true;
-        const e = new Error('body too large'); e.statusCode = 413;
-        return reject(e);
+        const error = new Error('body too large'); error.statusCode = 413;
+        return reject(error);
       }
-      data += c;
+      rawBody += chunk;
     });
     req.on('end', () => {
       if (aborted) return;
       try {
-        resolve(data ? JSON.parse(data) : {});
+        resolve(rawBody ? JSON.parse(rawBody) : {});
       } catch {
-        const e = new Error('invalid JSON'); e.statusCode = 400;
-        reject(e);
+        const error = new Error('invalid JSON'); error.statusCode = 400;
+        reject(error);
       }
     });
     req.on('error', reject);
@@ -137,21 +137,21 @@ function streamVideo(req, res, filename) {
   try { filePath = safeJoin(state.folder, filename); } catch { return json(res, 400, { error: 'bad path' }); }
   if (!fs.existsSync(filePath)) return json(res, 404, { error: 'not found' });
 
-  const stat = fs.statSync(filePath);
+  const stats = fs.statSync(filePath);
   const mime = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
   const range = req.headers.range;
-  const m = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
+  const rangeMatch = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
 
-  if (m && (m[1] || m[2])) {
-    let start = m[1] ? parseInt(m[1], 10) : 0;
-    let end = m[2] ? parseInt(m[2], 10) : stat.size - 1;
-    if (start > end || start >= stat.size) {
-      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
+  if (rangeMatch && (rangeMatch[1] || rangeMatch[2])) {
+    let start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0;
+    let end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : stats.size - 1;
+    if (start > end || start >= stats.size) {
+      res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` });
       return res.end();
     }
-    end = Math.min(end, stat.size - 1);
+    end = Math.min(end, stats.size - 1);
     res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Content-Range': `bytes ${start}-${end}/${stats.size}`,
       'Accept-Ranges': 'bytes',
       'Content-Length': end - start + 1,
       'Content-Type': mime,
@@ -159,7 +159,7 @@ function streamVideo(req, res, filename) {
     fs.createReadStream(filePath, { start, end }).pipe(res);
   } else {
     res.writeHead(200, {
-      'Content-Length': stat.size,
+      'Content-Length': stats.size,
       'Content-Type': mime,
       'Accept-Ranges': 'bytes',
     });
@@ -243,15 +243,15 @@ const server = http.createServer(async (req, res) => {
       if (action === 'reject') {
         const rejectedDir = path.join(state.folder, REJECTED_DIR_NAME);
         fs.mkdirSync(rejectedDir, { recursive: true });
-        const src = safeJoin(state.folder, file);
-        let dest = path.join(rejectedDir, path.basename(file));
+        const sourcePath = safeJoin(state.folder, file);
+        let destPath = path.join(rejectedDir, path.basename(file));
         // avoid clobbering an existing file with the same name
-        let n = 1;
-        while (fs.existsSync(dest)) {
-          const ext = path.extname(file);
-          dest = path.join(rejectedDir, `${path.basename(file, ext)} (${n++})${ext}`);
+        let duplicateCount = 1;
+        while (fs.existsSync(destPath)) {
+          const extension = path.extname(file);
+          destPath = path.join(rejectedDir, `${path.basename(file, extension)} (${duplicateCount++})${extension}`);
         }
-        fs.renameSync(src, dest);
+        fs.renameSync(sourcePath, destPath);
       }
 
       state.queue.shift();
@@ -264,17 +264,17 @@ const server = http.createServer(async (req, res) => {
 
     // --- undo last decision (this session) ---
     if (req.method === 'POST' && url.pathname === '/api/undo') {
-      const last = state.history.pop();
-      if (!last) return json(res, 400, { error: 'Nothing to undo' });
-      if (last.action === 'reject') {
-        const src = path.join(state.folder, REJECTED_DIR_NAME, path.basename(last.file));
-        if (fs.existsSync(src)) fs.renameSync(src, safeJoin(state.folder, last.file));
+      const lastDecision = state.history.pop();
+      if (!lastDecision) return json(res, 400, { error: 'Nothing to undo' });
+      if (lastDecision.action === 'reject') {
+        const sourcePath = path.join(state.folder, REJECTED_DIR_NAME, path.basename(lastDecision.file));
+        if (fs.existsSync(sourcePath)) fs.renameSync(sourcePath, safeJoin(state.folder, lastDecision.file));
       }
       const progress = loadProgress();
-      delete progress.reviewed[last.file];
+      delete progress.reviewed[lastDecision.file];
       saveProgress(progress);
-      state.queue.unshift(last.file);
-      return json(res, 200, { ok: true, file: last.file });
+      state.queue.unshift(lastDecision.file);
+      return json(res, 200, { ok: true, file: lastDecision.file });
     }
 
     // --- reset progress (forget reviews; does NOT restore rejected files) ---
@@ -290,10 +290,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     json(res, 404, { error: 'not found' });
-  } catch (err) {
-    const code = err.statusCode || 500;
-    if (code === 500) console.error(err);
-    json(res, code, { error: code === 500 ? 'internal error' : err.message });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    if (statusCode === 500) console.error(error);
+    json(res, statusCode, { error: statusCode === 500 ? 'internal error' : error.message });
   }
 });
 
