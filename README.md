@@ -38,6 +38,9 @@ Optional second argument sets the port: `node server.js "C:\videos" 5000`.
 | `M` | Mute / unmute |
 | `Space` | Play / pause |
 
+Videos play through once. If a video reaches the end without a decision, it
+counts as **Keep** and the next one loads automatically. The player has normal
+controls for scrubbing, volume, and fullscreen.
 Videos start muted; click **Unmute** (or press `M`) to enable sound. Your
 choice carries over to the next video.
 

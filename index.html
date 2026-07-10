@@ -274,6 +274,9 @@ player.addEventListener('error', () => {
   filenameEl.textContent = current + ' (cannot play in browser — keep or reject by filename, or undo)';
 });
 
+// Playing all the way through without a decision counts as Keep.
+player.addEventListener('ended', () => decide('keep'));
+
 folderForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const folder = folderInput.value.trim();
