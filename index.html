@@ -197,25 +197,25 @@ function showFlash(action) {
   setTimeout(() => flash.classList.remove('show'), 350);
 }
 
-function updateHud(data) {
-  const total = data.remaining + data.reviewed;
-  counterEl.textContent = `${data.reviewed} reviewed · ${data.remaining} left of ${total}`;
-  btnUndo.disabled = !data.canUndo;
+function updateHud(status) {
+  const total = status.remaining + status.reviewed;
+  counterEl.textContent = `${status.reviewed} reviewed · ${status.remaining} left of ${total}`;
+  btnUndo.disabled = !status.canUndo;
 }
 
 async function api(path, body) {
-  const res = await fetch(path, body
+  const response = await fetch(path, body
     ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     : undefined);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || response.statusText);
+  return payload;
 }
 
 async function loadNext() {
-  const data = await api('/api/next');
-  updateHud(data);
-  current = data.file;
+  const status = await api('/api/next');
+  updateHud(status);
+  current = status.file;
   if (!current) {
     filenameEl.textContent = '';
     showMessage('All done \u{1F389}', 'Every video in this folder has been reviewed. Kept videos stayed in place; rejected ones are in the _rejected subfolder.');
@@ -235,8 +235,8 @@ async function decide(action) {
     showFlash(action);
     await api('/api/decide', { file: current, action });
     await loadNext();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   } finally {
     busy = false;
   }
@@ -248,8 +248,8 @@ async function undo() {
   try {
     await api('/api/undo', {});
     await loadNext();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   } finally {
     busy = false;
   }
@@ -277,27 +277,27 @@ player.addEventListener('error', () => {
 // Playing all the way through without a decision counts as Keep.
 player.addEventListener('ended', () => decide('keep'));
 
-folderForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+folderForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
   const folder = folderInput.value.trim();
   if (!folder) return;
   try {
     await api('/api/folder', { folder });
     await loadNext();
-  } catch (err) {
-    msgBody.textContent = err.message;
+  } catch (error) {
+    msgBody.textContent = error.message;
   }
 });
 
-document.addEventListener('keydown', (e) => {
-  if (e.target === folderInput) return;
-  switch (e.key.toLowerCase()) {
-    case 'k': case 'arrowright': e.preventDefault(); decide('keep'); break;
-    case 'r': case 'arrowleft': e.preventDefault(); decide('reject'); break;
-    case 'u': e.preventDefault(); undo(); break;
-    case 'm': e.preventDefault(); toggleMute(); break;
+document.addEventListener('keydown', (event) => {
+  if (event.target === folderInput) return;
+  switch (event.key.toLowerCase()) {
+    case 'k': case 'arrowright': event.preventDefault(); decide('keep'); break;
+    case 'r': case 'arrowleft': event.preventDefault(); decide('reject'); break;
+    case 'u': event.preventDefault(); undo(); break;
+    case 'm': event.preventDefault(); toggleMute(); break;
     case ' ':
-      e.preventDefault();
+      event.preventDefault();
       if (player.paused) player.play(); else player.pause();
       break;
   }
@@ -317,8 +317,8 @@ window.addEventListener('pagehide', () => { navigator.sendBeacon('/api/bye'); })
     }
     updateHud(status);
     await loadNext();
-  } catch (err) {
-    showMessage('Error', err.message);
+  } catch (error) {
+    showMessage('Error', error.message);
   }
 })();
 </script>
