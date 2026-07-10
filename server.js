@@ -10,15 +10,14 @@ const REJECTED_DIR_NAME = '_rejected';
 const PROGRESS_FILE = '.video-curator-progress.json';
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v', '.ogv', '.mkv', '.avi']);
 
-// Loopback host names we accept in the Host header. Anything else means the
-// request was routed here from another origin (DNS rebinding) — reject it.
+// Host values we accept; anything else means a cross-origin request
+// (DNS rebinding) and is rejected.
 const ALLOWED_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
-// Auto-shutdown: exit this long after the browser stops sending heartbeats.
+// Auto-shutdown: exit this long after browser heartbeats stop.
 const IDLE_SHUTDOWN_MS = 10000;
 
-// Cap request bodies. Every body here is small JSON; anything larger is a bug
-// or abuse, so we stop buffering rather than let memory grow unbounded.
+// Cap request bodies (all small JSON) to bound memory use.
 const MAX_BODY_BYTES = 64 * 1024;
 
 const MIME = {
@@ -40,10 +39,9 @@ let state = {
 let lastSeen = 0;
 let watchdog = null;
 
-// Record that the browser just checked in, and lazily start a watchdog that
-// exits the process once the heartbeats stop (tab or browser closed). soon=true
-// (from the page's unload beacon) shortens the grace so a real close shuts down
-// quickly, while a refresh — which reconnects within the grace — stays alive.
+// Mark a browser check-in and lazily start a watchdog that exits once
+// heartbeats stop (tab/browser closed). soon=true (unload beacon) shortens the
+// grace for a prompt close; a refresh reconnects within the grace and survives.
 function touch(soon = false) {
   lastSeen = soon ? Date.now() - (IDLE_SHUTDOWN_MS - 3000) : Date.now();
   if (watchdog) return;
@@ -170,8 +168,8 @@ function streamVideo(req, res, filename) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // Guard against DNS rebinding: only serve requests addressed to a loopback
-  // host. A browser on another origin cannot forge one of these Host values.
+  // Block DNS rebinding: serve only loopback Host values, which a page on
+  // another origin cannot forge.
   if (!ALLOWED_HOSTNAMES.has(url.hostname)) {
     return json(res, 403, { error: 'forbidden' });
   }
@@ -197,8 +195,7 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // --- heartbeat: the page pings periodically so the server knows a browser
-    //     is still open; the unload beacon asks it to exit promptly ---
+    // --- heartbeat: pings keep the server alive; the unload beacon exits it ---
     if (req.method === 'GET' && url.pathname === '/api/ping') {
       return json(res, 200, { ok: true });
     }

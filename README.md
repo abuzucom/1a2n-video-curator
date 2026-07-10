@@ -1,7 +1,7 @@
 # Video Curator
 
-A tiny local app for triaging a large folder of videos. It plays them in
-shuffled order; you press **Keep** or **Reject** on each one.
+A local app for triaging a folder of videos. It plays them in shuffled order;
+you press **Keep** or **Reject** on each.
 
 - **Keep** — leaves the file where it is.
 - **Reject** — moves the file into a `_rejected` subfolder inside your video folder.

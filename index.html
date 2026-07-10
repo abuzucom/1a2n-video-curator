@@ -274,7 +274,7 @@ player.addEventListener('error', () => {
   filenameEl.textContent = current + ' (cannot play in browser — keep or reject by filename, or undo)';
 });
 
-// Playing all the way through without a decision counts as Keep.
+// Reaching the end without a decision counts as Keep.
 player.addEventListener('ended', () => decide('keep'));
 
 folderForm.addEventListener('submit', async (e) => {
@@ -303,8 +303,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Keep-alive: ping while the page is open so the server knows a browser is
-// still here, and fire a one-shot beacon on close so it shuts down promptly.
+// Keep-alive: ping while open so the server knows we're here; a close beacon
+// tells it to shut down promptly.
 setInterval(() => { fetch('/api/ping').catch(() => {}); }, 3000);
 window.addEventListener('pagehide', () => { navigator.sendBeacon('/api/bye'); });
 
