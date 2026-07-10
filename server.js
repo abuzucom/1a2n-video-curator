@@ -30,6 +30,13 @@ const MIME = {
   '.avi': 'video/x-msvideo',
 };
 
+// Static files served from this directory. Fixed keys, so no user path input.
+const ASSETS = {
+  '/':           ['index.html', 'text/html; charset=utf-8'],
+  '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
+  '/app.js':     ['app.js',     'text/javascript; charset=utf-8'],
+};
+
 let state = {
   folder: process.argv[2] ? path.resolve(process.argv[2]) : null,
   queue: [],        // shuffled filenames still to review
@@ -177,10 +184,12 @@ const server = http.createServer(async (req, res) => {
   touch();
 
   try {
-    // --- static page ---
-    if (req.method === 'GET' && url.pathname === '/') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
+    // --- static assets ---
+    const asset = ASSETS[url.pathname];
+    if (req.method === 'GET' && asset) {
+      const [file, type] = asset;
+      res.writeHead(200, { 'Content-Type': type });
+      return res.end(fs.readFileSync(path.join(__dirname, file)));
     }
 
     // --- set / get folder ---
