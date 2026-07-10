@@ -37,8 +37,9 @@ Optional second argument sets the port: `node server.js "C:\videos" 5000`.
 | `U` | Undo last decision |
 | `Space` | Play / pause |
 
-Videos loop automatically; the player has normal controls for scrubbing,
-volume, and fullscreen.
+Videos play through once. If a video reaches the end without a decision, it
+counts as **Keep** and the next one loads automatically. The player has normal
+controls for scrubbing, volume, and fullscreen.
 
 ## Notes
 
