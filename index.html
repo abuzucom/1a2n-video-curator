@@ -139,10 +139,11 @@
     <h1>Video Curator</h1>
     <span id="filename"></span>
     <span id="counter"></span>
+    <button id="btn-mute" class="small"><span id="mute-label">Unmute</span> <kbd>M</kbd></button>
   </header>
 
   <main>
-    <video id="player" class="hidden" controls autoplay loop></video>
+    <video id="player" class="hidden" controls autoplay loop muted></video>
     <div id="message">
       <h2 id="msg-title">Loading…</h2>
       <p id="msg-body"></p>
@@ -173,6 +174,8 @@ const counterEl = document.getElementById('counter');
 const btnKeep = document.getElementById('btn-keep');
 const btnReject = document.getElementById('btn-reject');
 const btnUndo = document.getElementById('btn-undo');
+const btnMute = document.getElementById('btn-mute');
+const muteLabel = document.getElementById('mute-label');
 const flash = document.getElementById('flash');
 
 let current = null;
@@ -252,9 +255,19 @@ async function undo() {
   }
 }
 
+function updateMuteButton() {
+  muteLabel.textContent = player.muted ? '🔇 Unmute' : '🔊 Mute';
+}
+function toggleMute() {
+  player.muted = !player.muted;
+  updateMuteButton();
+}
+updateMuteButton();
+
 btnKeep.addEventListener('click', () => decide('keep'));
 btnReject.addEventListener('click', () => decide('reject'));
 btnUndo.addEventListener('click', undo);
+btnMute.addEventListener('click', toggleMute);
 
 player.addEventListener('error', () => {
   if (!current) return;
@@ -279,12 +292,18 @@ document.addEventListener('keydown', (e) => {
     case 'k': case 'arrowright': e.preventDefault(); decide('keep'); break;
     case 'r': case 'arrowleft': e.preventDefault(); decide('reject'); break;
     case 'u': e.preventDefault(); undo(); break;
+    case 'm': e.preventDefault(); toggleMute(); break;
     case ' ':
       e.preventDefault();
       if (player.paused) player.play(); else player.pause();
       break;
   }
 });
+
+// Keep-alive: ping while the page is open so the server knows a browser is
+// still here, and fire a one-shot beacon on close so it shuts down promptly.
+setInterval(() => { fetch('/api/ping').catch(() => {}); }, 3000);
+window.addEventListener('pagehide', () => { navigator.sendBeacon('/api/bye'); });
 
 (async function init() {
   try {

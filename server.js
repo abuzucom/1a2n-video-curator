@@ -10,6 +10,17 @@ const REJECTED_DIR_NAME = '_rejected';
 const PROGRESS_FILE = '.video-curator-progress.json';
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v', '.ogv', '.mkv', '.avi']);
 
+// Loopback host names we accept in the Host header. Anything else means the
+// request was routed here from another origin (DNS rebinding) — reject it.
+const ALLOWED_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+// Auto-shutdown: exit this long after the browser stops sending heartbeats.
+const IDLE_SHUTDOWN_MS = 10000;
+
+// Cap request bodies. Every body here is small JSON; anything larger is a bug
+// or abuse, so we stop buffering rather than let memory grow unbounded.
+const MAX_BODY_BYTES = 64 * 1024;
+
 const MIME = {
   '.mp4': 'video/mp4',
   '.m4v': 'video/mp4',
@@ -25,6 +36,25 @@ let state = {
   queue: [],        // shuffled filenames still to review
   history: [],      // [{ file, action: 'keep'|'reject' }] this session, for undo
 };
+
+let lastSeen = 0;
+let watchdog = null;
+
+// Record that the browser just checked in, and lazily start a watchdog that
+// exits the process once the heartbeats stop (tab or browser closed). soon=true
+// (from the page's unload beacon) shortens the grace so a real close shuts down
+// quickly, while a refresh — which reconnects within the grace — stays alive.
+function touch(soon = false) {
+  lastSeen = soon ? Date.now() - (IDLE_SHUTDOWN_MS - 3000) : Date.now();
+  if (watchdog) return;
+  watchdog = setInterval(() => {
+    if (Date.now() - lastSeen > IDLE_SHUTDOWN_MS) {
+      console.log('Browser closed — shutting down.');
+      process.exit(0);
+    }
+  }, 2000);
+  if (watchdog.unref) watchdog.unref();
+}
 
 function progressPath() {
   return path.join(state.folder, PROGRESS_FILE);
@@ -63,8 +93,9 @@ function scanFolder() {
 }
 
 function safeJoin(base, name) {
-  const resolved = path.join(base, path.basename(name));
-  if (!resolved.startsWith(base)) throw new Error('bad path');
+  const resolved = path.resolve(base, path.basename(name));
+  const rel = path.relative(base, resolved);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('bad path');
   return resolved;
 }
 
@@ -76,9 +107,26 @@ function json(res, code, obj) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', c => { data += c; });
+    let size = 0;
+    let aborted = false;
+    req.on('data', c => {
+      if (aborted) return;
+      size += c.length;
+      if (size > MAX_BODY_BYTES) {
+        aborted = true;
+        const e = new Error('body too large'); e.statusCode = 413;
+        return reject(e);
+      }
+      data += c;
+    });
     req.on('end', () => {
-      try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); }
+      if (aborted) return;
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch {
+        const e = new Error('invalid JSON'); e.statusCode = 400;
+        reject(e);
+      }
     });
     req.on('error', reject);
   });
@@ -92,12 +140,12 @@ function streamVideo(req, res, filename) {
   const stat = fs.statSync(filePath);
   const mime = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
   const range = req.headers.range;
+  const m = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
 
-  if (range) {
-    const m = /bytes=(\d*)-(\d*)/.exec(range);
+  if (m && (m[1] || m[2])) {
     let start = m[1] ? parseInt(m[1], 10) : 0;
     let end = m[2] ? parseInt(m[2], 10) : stat.size - 1;
-    if (start >= stat.size) {
+    if (start > end || start >= stat.size) {
       res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
       return res.end();
     }
@@ -122,6 +170,14 @@ function streamVideo(req, res, filename) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  // Guard against DNS rebinding: only serve requests addressed to a loopback
+  // host. A browser on another origin cannot forge one of these Host values.
+  if (!ALLOWED_HOSTNAMES.has(url.hostname)) {
+    return json(res, 403, { error: 'forbidden' });
+  }
+
+  touch();
+
   try {
     // --- static page ---
     if (req.method === 'GET' && url.pathname === '/') {
@@ -141,11 +197,22 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // --- heartbeat: the page pings periodically so the server knows a browser
+    //     is still open; the unload beacon asks it to exit promptly ---
+    if (req.method === 'GET' && url.pathname === '/api/ping') {
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/bye') {
+      touch(true);
+      res.writeHead(204);
+      return res.end();
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/folder') {
       const body = await readBody(req);
       const folder = path.resolve(String(body.folder || ''));
       if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
-        return json(res, 400, { error: `Not a folder: ${folder}` });
+        return json(res, 400, { error: 'That path is not a folder, or does not exist.' });
       }
       state.folder = folder;
       const info = scanFolder();
@@ -224,8 +291,9 @@ const server = http.createServer(async (req, res) => {
 
     json(res, 404, { error: 'not found' });
   } catch (err) {
-    console.error(err);
-    json(res, 500, { error: String(err.message || err) });
+    const code = err.statusCode || 500;
+    if (code === 500) console.error(err);
+    json(res, code, { error: code === 500 ? 'internal error' : err.message });
   }
 });
 
