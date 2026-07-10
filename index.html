@@ -286,6 +286,11 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// Keep-alive: ping while the page is open so the server knows a browser is
+// still here, and fire a one-shot beacon on close so it shuts down promptly.
+setInterval(() => { fetch('/api/ping').catch(() => {}); }, 3000);
+window.addEventListener('pagehide', () => { navigator.sendBeacon('/api/bye'); });
+
 (async function init() {
   try {
     const status = await api('/api/status');

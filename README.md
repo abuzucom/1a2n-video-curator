@@ -45,4 +45,7 @@ volume, and fullscreen.
 - Supported extensions: mp4, m4v, webm, mov, ogv, mkv, avi. Browsers can't
   decode every codec (e.g. most `.avi`, some `.mkv`/`.mov`); for those the page
   shows the filename with a "cannot play" note and you can still keep or reject.
-- The server only listens on localhost.
+- The server only listens on localhost, and rejects requests whose `Host`
+  header isn't a loopback name (defends against DNS-rebinding from other sites).
+- The server shuts itself down a few seconds after you close the browser tab,
+  so it doesn't keep running in the background. A refresh keeps it alive.
