@@ -32,6 +32,7 @@ one. An optional second argument sets the port: `node server.js "C:\videos" 5000
 | `M` | Mute / unmute |
 | `Space` | Play / pause |
 
+<<<<<<< HEAD
 Videos start muted; click **Unmute** (or press `M`) to enable sound. Each video
 plays through once — reaching the end without a decision counts as **Keep** and
 the next one loads.
@@ -55,6 +56,14 @@ video folder so it can skip already-reviewed videos during the session. That
 file is removed automatically when the server stops (closing the browser tab
 shuts it down within seconds), so nothing is left in your folder and progress
 does not carry across runs.
+=======
+Videos start muted; click **Unmute** (or press `M`) to enable sound. Your
+choice carries over to the next video.
+
+Videos play through once. If a video reaches the end without a decision, it
+counts as **Keep** and the next one loads automatically. The player has normal
+controls for scrubbing, volume, and fullscreen.
+>>>>>>> origin/auto-keep-on-end
 
 ## Notes
 
