@@ -81,7 +81,7 @@ Branch names use `<type>/<short-kebab-description>`:
 | Prefix | Use | Example |
 |---|---|---|
 | `feat/` | New features | `feat/user-authentication` |
-| `bug/` | Bug fixes in development | `bug/cart-calculation-error` |
+| `fix/` | Bug fixes in development | `fix/cart-calculation-error` |
 | `chore/` | Maintenance, dependencies, build changes not affecting users | `chore/update-webpack-config` |
 | `docs/` | Documentation only | `docs/update-api-readme` |
 | `test/` | Adding or refactoring tests | `test/add-login-unit-tests` |
