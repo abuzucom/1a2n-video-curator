@@ -91,9 +91,14 @@ body {
 }
 
 .counter {
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
   white-space: nowrap;
 }
 
@@ -259,6 +264,7 @@ kbd {
   border-radius: var(--radius-lg);
   pointer-events: none;
   opacity: 0;
+  z-index: 9999;
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
 #flash.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -273,4 +279,9 @@ kbd {
 @media (max-width: 520px) {
   .btn-keep, .btn-reject { min-width: 0; flex: 1; }
   .app-footer { gap: var(--space-2); }
+}
+
+.error-text {
+  color: var(--reject);
+  font-weight: 500;
 }

@@ -1,6 +1,6 @@
 {
   "name": "video-curator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local zero-dependency web app for triaging a folder of videos: plays them shuffled, Keep leaves the file in place, Reject moves it to a _rejected subfolder.",
   "main": "server.js",
   "scripts": {

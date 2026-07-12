@@ -12,6 +12,7 @@ const btnUndo = document.getElementById('btn-undo');
 const btnMute = document.getElementById('btn-mute');
 const muteLabel = document.getElementById('mute-label');
 const flash = document.getElementById('flash');
+const btnBrowse = document.getElementById('btn-browse');
 
 let current = null;
 let busy = false;
@@ -21,6 +22,7 @@ function showMessage(title, body, showForm = false) {
   player.pause();
   message.classList.remove('hidden');
   msgTitle.textContent = title;
+  msgBody.className = '';
   msgBody.textContent = body;
   folderForm.style.display = showForm ? 'flex' : 'none';
   if (showForm) folderInput.focus();
@@ -53,7 +55,7 @@ async function loadNext() {
   current = status.file;
   if (!current) {
     filenameEl.textContent = '';
-    showMessage('All done \u{1F389}', 'Every video in this folder has been reviewed. Kept videos stayed in place; rejected ones are in the _rejected subfolder.');
+    showMessage('All done \u{1F389}', 'Every video in this folder has been reviewed. Kept videos are in the _keep subfolder; rejected ones are in the _rejected subfolder.');
     return;
   }
   filenameEl.textContent = current;
@@ -114,6 +116,20 @@ player.addEventListener('error', () => {
 // Reaching the end without a decision counts as Keep.
 player.addEventListener('ended', () => decide('keep'));
 
+btnBrowse.addEventListener('click', async () => {
+  try {
+    const res = await api('/api/browse', {});
+    if (res.folder) {
+      folderInput.value = res.folder;
+    }
+  } catch (error) {
+    msgTitle.textContent = 'Error';
+    msgBody.className = 'error-text';
+    msgBody.textContent = error.message;
+    folderForm.style.display = 'flex';
+  }
+});
+
 folderForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const folder = folderInput.value.trim();
@@ -122,7 +138,10 @@ folderForm.addEventListener('submit', async (event) => {
     await api('/api/folder', { folder });
     await loadNext();
   } catch (error) {
+    msgTitle.textContent = 'Invalid Path';
+    msgBody.className = 'error-text';
     msgBody.textContent = error.message;
+    folderForm.style.display = 'flex';
   }
 });
 
