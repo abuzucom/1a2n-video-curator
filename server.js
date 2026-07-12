@@ -42,6 +42,7 @@ const ASSETS = {
 };
 
 function isGuiAvailable() {
+  if (process.env.TESTING) return false;
   if (process.platform === 'win32') {
     const session = process.env.SESSIONNAME;
     if (session && session.toLowerCase().startsWith('services')) {
@@ -566,6 +567,25 @@ const server = http.createServer(async (req, res) => {
     json(res, statusCode, { error: statusCode === 500 ? 'internal error' : error.message });
   }
 });
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    const errorMsg = `Security Exception: Port ${PORT} is already in use.`;
+    console.error(errorMsg);
+    showNativeErrorDialog(errorMsg, 'Port Conflict');
+    throw new Error(errorMsg);
+  }
+  console.error(err);
+  throw err;
+});
+
+const BANNED_PORTS = new Set([80, 8080, 443, 8443]);
+if (BANNED_PORTS.has(PORT)) {
+  const errorMsg = `Security Exception: Port ${PORT} is prohibited.`;
+  console.error(errorMsg);
+  showNativeErrorDialog(errorMsg, 'Security Violation');
+  throw new Error(errorMsg);
+}
 
 if (state.folder) {
   try {
