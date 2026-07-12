@@ -41,7 +41,22 @@ const ASSETS = {
   '/app.js':     ['app.js',     'text/javascript; charset=utf-8'],
 };
 
+function isGuiAvailable() {
+  if (process.platform === 'win32') {
+    const session = process.env.SESSIONNAME;
+    if (session && session.toLowerCase().startsWith('services')) {
+      return false;
+    }
+    return true;
+  }
+  if (process.platform === 'darwin') {
+    return true;
+  }
+  return !!(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+}
+
 function showNativeErrorDialog(message, title = 'Security Error') {
+  if (!isGuiAvailable()) return;
   const escapedMessage = message.replace(/"/g, '\\"');
   const escapedTitle = title.replace(/"/g, '\\"');
 
@@ -559,13 +574,13 @@ if (state.folder) {
     const errorMsg = `Invalid folder path: ${err.message}`;
     console.error(errorMsg.replace(/[\r\n]+/g, ' '));
     showNativeErrorDialog(errorMsg, 'Configuration Error');
-    process.exit(1);
+    throw err;
   }
   if (!fs.existsSync(state.folder) || !fs.statSync(state.folder).isDirectory()) {
     const errorMsg = `Not a folder: ${state.folder}`;
     console.error(errorMsg.replace(/[\r\n]+/g, ' '));
     showNativeErrorDialog(errorMsg, 'Configuration Error');
-    process.exit(1);
+    throw new Error(errorMsg);
   }
   const info = scanFolder();
   const sanitizedFolderLog = String(state.folder).replace(/[\r\n]+/g, ' ');
@@ -585,7 +600,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const errorMsg = `Security Exception: Server is running on a non-loopback interface (${addr ? addr.address : 'unknown'}). Refusing to start.`;
     console.error(errorMsg);
     showNativeErrorDialog(errorMsg, 'Security Violation');
-    process.exit(1);
+    throw new Error(errorMsg);
   }
   console.log(`Video Curator running at http://localhost:${PORT}`);
   if (!state.folder) console.log('No folder given - enter one in the browser page.');
