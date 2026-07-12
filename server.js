@@ -581,6 +581,12 @@ server.on('error', (err) => {
       server.listen(PORT, '127.0.0.1', onListening);
       return;
     }
+    if (PORT === 4322) {
+      const errorMsg = `Security Exception: Port 4322 is already in use. Please close out the dead processes first.`;
+      console.error(errorMsg);
+      showNativeErrorDialog(errorMsg, 'Port Conflict');
+      throw new Error(errorMsg);
+    }
     const errorMsg = `Security Exception: Port ${PORT} is already in use.`;
     console.error(errorMsg);
     showNativeErrorDialog(errorMsg, 'Port Conflict');
