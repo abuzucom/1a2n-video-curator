@@ -4,11 +4,13 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { exec, execSync } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const net = require('net');
 const os = require('os');
+const crypto = require('crypto');
 
 let PORT = Number(process.argv[3]) || 4321;
+const API_TOKEN = crypto.randomBytes(32).toString('hex');
 const REJECTED_DIR_NAME = '_rejected';
 const KEEP_DIR_NAME = '_keep';
 const PROGRESS_FILE = '.video-curator-progress.json';
@@ -58,24 +60,40 @@ function isGuiAvailable() {
 
 function showNativeErrorDialog(message, title = 'Security Error') {
   if (!isGuiAvailable()) return;
-  const escapedMessage = message.replace(/"/g, '\\"');
-  const escapedTitle = title.replace(/"/g, '\\"');
 
   try {
+    const env = {
+      ...process.env,
+      DIALOG_MSG: message,
+      DIALOG_TITLE: title
+    };
+
     if (process.platform === 'win32') {
-      const cmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${escapedMessage.replace(/'/g, "''")}', '${escapedTitle.replace(/'/g, "''")}', 0, 16)"`;
-      execSync(cmd, { stdio: 'ignore' });
+      execFileSync('powershell.exe', [
+        '-NoProfile',
+        '-Command',
+        'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show($env:DIALOG_MSG, $env:DIALOG_TITLE, 0, 16)'
+      ], { stdio: 'ignore', env });
     } else if (process.platform === 'darwin') {
-      const cmd = `osascript -e "display dialog \\"${escapedMessage}\\" with title \\"${escapedTitle}\\" buttons {\\"OK\\"} default button 1 with icon stop"`;
-      execSync(cmd, { stdio: 'ignore' });
+      execFileSync('osascript', [
+        '-e',
+        'display dialog (system attribute "DIALOG_MSG") with title (system attribute "DIALOG_TITLE") buttons {"OK"} default button 1 with icon stop'
+      ], { stdio: 'ignore', env });
     } else {
       try {
-        const cmd = `zenity --error --title="${escapedTitle}" --text="${escapedMessage}"`;
-        execSync(cmd, { stdio: 'ignore' });
+        execFileSync('zenity', [
+          '--error',
+          '--title=' + title,
+          '--text=' + message
+        ], { stdio: 'ignore' });
       } catch (err) {
         try {
-          const cmd = `kdialog --error "${escapedMessage}" --title "${escapedTitle}"`;
-          execSync(cmd, { stdio: 'ignore' });
+          execFileSync('kdialog', [
+            '--error',
+            message,
+            '--title',
+            title
+          ], { stdio: 'ignore' });
         } catch (fbErr) {}
       }
     }
@@ -87,16 +105,21 @@ function showNativeErrorDialog(message, title = 'Security Error') {
 function showNativeFolderPicker() {
   return new Promise((resolve, reject) => {
     if (process.platform === 'win32') {
-      const cmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Video Folder'; $f.ShowNewFolderButton = $false; $r = $f.ShowDialog(); if ($r -eq 'OK') { Write-Output $f.SelectedPath }"`;
-      exec(cmd, (error, stdout) => {
+      execFile('powershell.exe', [
+        '-NoProfile',
+        '-Command',
+        "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Video Folder'; $f.ShowNewFolderButton = $false; $r = $f.ShowDialog(); if ($r -eq 'OK') { Write-Output $f.SelectedPath }"
+      ], (error, stdout) => {
         if (error) {
           return reject(new Error('Failed to open directory dialog: ' + error.message));
         }
         resolve(stdout.trim() || null);
       });
     } else if (process.platform === 'darwin') {
-      const cmd = `osascript -e "POSIX path of (choose folder with prompt \\"Select a folder containing your videos\\")"`;
-      exec(cmd, (error, stdout) => {
+      execFile('osascript', [
+        '-e',
+        'POSIX path of (choose folder with prompt "Select a folder containing your videos")'
+      ], (error, stdout) => {
         if (error) {
           if (error.message.includes('User canceled')) {
             return resolve(null);
@@ -106,11 +129,13 @@ function showNativeFolderPicker() {
         resolve(stdout.trim() || null);
       });
     } else {
-      const cmd = `zenity --file-selection --directory --title="Select a folder containing your videos"`;
-      exec(cmd, (error, stdout) => {
+      execFile('zenity', [
+        '--file-selection',
+        '--directory',
+        '--title=Select a folder containing your videos'
+      ], (error, stdout) => {
         if (error) {
-          const fallbackCmd = `kdialog --getexistingdirectory`;
-          exec(fallbackCmd, (fbError, fbStdout) => {
+          execFile('kdialog', ['--getexistingdirectory'], (fbError, fbStdout) => {
             if (fbError) {
               return resolve(null);
             }
@@ -217,7 +242,12 @@ function validateFolderPath(folderPath) {
     }
   }
 
-  const resolved = path.resolve(rawPath);
+  let resolved = path.resolve(rawPath);
+  try {
+    resolved = fs.realpathSync(resolved);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
 
   if (process.platform === 'win32') {
     const prohibitedDirs = [];
@@ -263,6 +293,22 @@ let state = {
   history: [],      // [{ file, action: 'keep'|'reject' }] this session, for undo
 };
 
+let activeVideoStreams = 0;
+const rateLimitStore = {};
+
+function rateLimit(key, limit, windowMs) {
+  const now = Date.now();
+  if (!rateLimitStore[key]) {
+    rateLimitStore[key] = [];
+  }
+  rateLimitStore[key] = rateLimitStore[key].filter(t => now - t < windowMs);
+  if (rateLimitStore[key].length >= limit) {
+    return false;
+  }
+  rateLimitStore[key].push(now);
+  return true;
+}
+
 let lastSeen = 0;
 let watchdog = null;
 
@@ -286,15 +332,52 @@ function progressPath() {
 }
 
 function loadProgress() {
+  const target = progressPath();
   try {
-    return JSON.parse(fs.readFileSync(progressPath(), 'utf8'));
-  } catch {
+    const st = fs.lstatSync(target);
+    if (st.isSymbolicLink() || !st.isFile()) {
+      throw new Error('Security Exception: Target path is a symbolic link or non-regular file.');
+    }
+    return JSON.parse(fs.readFileSync(target, 'utf8'));
+  } catch (err) {
+    if (err.message.includes('Security Exception')) {
+      throw err;
+    }
     return { reviewed: {} };
   }
 }
 
 function saveProgress(progress) {
-  fs.writeFileSync(progressPath(), JSON.stringify(progress, null, 2));
+  const target = progressPath();
+
+  try {
+    const st = fs.lstatSync(target);
+    if (st.isSymbolicLink() || !st.isFile()) {
+      throw new Error('Security Exception: Target path is a symbolic link or non-regular file.');
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+
+  const targetDir = path.dirname(path.resolve(target));
+  const expectedDir = path.resolve(state.folder);
+  if (targetDir !== expectedDir) {
+    throw new Error('Security Exception: Target directory mismatch.');
+  }
+
+  const tmpPath = target + '.tmp';
+
+  try {
+    const st = fs.lstatSync(tmpPath);
+    if (st.isSymbolicLink() || !st.isFile()) {
+      fs.unlinkSync(tmpPath);
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+
+  fs.writeFileSync(tmpPath, JSON.stringify(progress, null, 2));
+  fs.renameSync(tmpPath, target);
 }
 
 // Delete the session's progress file on shutdown. Constrained to exactly that
@@ -312,6 +395,71 @@ function cleanupProgress() {
   } catch (err) {
     // Ignore error if progress file doesn't exist or is already deleted
   }
+}
+
+function validateRequestAuthenticity(req, url) {
+  const tokenHeader = req.headers['x-api-token'] || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+  const tokenQuery = url.searchParams.get('t');
+  const token = tokenHeader || tokenQuery;
+
+  if (!token || token !== API_TOKEN) {
+    throw new Error('Unauthorized');
+  }
+
+  const origin = req.headers['origin'];
+  const referer = req.headers['referer'];
+
+  const allowedOrigins = new Set([
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+    `http://[::1]:${PORT}`
+  ]);
+
+  if (origin) {
+    if (!allowedOrigins.has(origin)) {
+      throw new Error('Forbidden Origin');
+    }
+  } else if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      const refOrigin = `${refUrl.protocol}//${refUrl.host}`;
+      if (!allowedOrigins.has(refOrigin)) {
+        throw new Error('Forbidden Referer');
+      }
+    } catch {
+      throw new Error('Invalid Referer');
+    }
+  }
+}
+
+function verifyCurationDirectory(dirName) {
+  const dirPath = path.join(state.folder, dirName);
+
+  try {
+    const st = fs.lstatSync(dirPath);
+    if (st.isSymbolicLink()) {
+      throw new Error(`Security Exception: Directory '${dirName}' is a symbolic link.`);
+    }
+    if (!st.isDirectory()) {
+      throw new Error(`Security Exception: Path '${dirName}' is not a directory.`);
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      fs.mkdirSync(dirPath, { recursive: true });
+    } else {
+      throw err;
+    }
+  }
+
+  const canonicalFolder = fs.realpathSync(state.folder);
+  const canonicalDest = fs.realpathSync(dirPath);
+
+  const relativePath = path.relative(canonicalFolder, canonicalDest);
+  if (relativePath !== dirName) {
+    throw new Error(`Security Exception: Canonical path for '${dirName}' resolved outside the folder tree.`);
+  }
+
+  return canonicalDest;
 }
 
 function shuffle(items) {
@@ -379,36 +527,75 @@ function readBody(req) {
 
 function streamVideo(req, res, filename) {
   let filePath;
-  try { filePath = safeJoin(state.folder, filename); } catch { return json(res, 400, { error: 'bad path' }); }
-  if (!fs.existsSync(filePath)) return json(res, 404, { error: 'not found' });
+  try {
+    filePath = safeJoin(state.folder, filename);
+  } catch {
+    return json(res, 400, { error: 'bad path' });
+  }
 
-  const stats = fs.statSync(filePath);
-  const mime = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
-  const range = req.headers.range;
-  const rangeMatch = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
-
-  if (rangeMatch && (rangeMatch[1] || rangeMatch[2])) {
-    let start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0;
-    let end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : stats.size - 1;
-    if (start > end || start >= stats.size) {
-      res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` });
-      return res.end();
+  let fd;
+  try {
+    let flags = fs.constants.O_RDONLY;
+    if (fs.constants.O_NOFOLLOW) {
+      flags |= fs.constants.O_NOFOLLOW;
     }
-    end = Math.min(end, stats.size - 1);
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${stats.size}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': end - start + 1,
-      'Content-Type': mime,
-    });
-    fs.createReadStream(filePath, { start, end }).pipe(res);
-  } else {
-    res.writeHead(200, {
-      'Content-Length': stats.size,
-      'Content-Type': mime,
-      'Accept-Ranges': 'bytes',
-    });
-    fs.createReadStream(filePath).pipe(res);
+    fd = fs.openSync(filePath, flags);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return json(res, 404, { error: 'not found' });
+    }
+    return json(res, 400, { error: err.message });
+  }
+
+  try {
+    const stats = fs.fstatSync(fd);
+    if (!stats.isFile()) {
+      fs.closeSync(fd);
+      return json(res, 400, { error: 'not a file' });
+    }
+
+    const mime = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+    const range = req.headers.range;
+    const rangeMatch = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
+
+    if (rangeMatch && (rangeMatch[1] || rangeMatch[2])) {
+      let start;
+      let end;
+      if (!rangeMatch[1] && rangeMatch[2]) {
+        const suffixLength = parseInt(rangeMatch[2], 10);
+        start = Math.max(0, stats.size - suffixLength);
+        end = stats.size - 1;
+      } else {
+        start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0;
+        end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : stats.size - 1;
+      }
+
+      if (start > end || start >= stats.size) {
+        res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` });
+        fs.closeSync(fd);
+        return res.end();
+      }
+      end = Math.min(end, stats.size - 1);
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${stats.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': end - start + 1,
+        'Content-Type': mime,
+      });
+      fs.createReadStream(null, { fd, start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': stats.size,
+        'Content-Type': mime,
+        'Accept-Ranges': 'bytes',
+      });
+      fs.createReadStream(null, { fd }).pipe(res);
+    }
+  } catch (err) {
+    try {
+      fs.closeSync(fd);
+    } catch {}
+    return json(res, 500, { error: err.message });
   }
 }
 
@@ -424,7 +611,32 @@ const server = http.createServer(async (req, res) => {
   touch();
 
   try {
+    if (url.pathname === '/api/ping') {
+      if (!rateLimit('ping', 60, 60000)) {
+        return json(res, 429, { error: 'Too many requests' });
+      }
+    } else if (req.method === 'POST') {
+      if (!rateLimit('api-post', 100, 60000)) {
+        return json(res, 429, { error: 'Too many requests' });
+      }
+    }
+
+    if (req.method === 'POST') {
+      try {
+        validateRequestAuthenticity(req, url);
+      } catch (err) {
+        const statusCode = err.message === 'Unauthorized' ? 401 : 403;
+        return json(res, statusCode, { error: err.message });
+      }
+    }
+
     // --- static assets ---
+    if (req.method === 'GET' && url.pathname === '/') {
+      let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+      html = html.replace('</head>', `<script>window.API_TOKEN = "${API_TOKEN}";</script>\n</head>`);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
     const asset = ASSETS[url.pathname];
     if (req.method === 'GET' && asset) {
       const [file, type] = asset;
@@ -507,8 +719,7 @@ const server = http.createServer(async (req, res) => {
       let movedAs = file;
       if (action === 'reject' || action === 'keep') {
         const targetDirName = action === 'reject' ? REJECTED_DIR_NAME : KEEP_DIR_NAME;
-        const targetDir = path.join(state.folder, targetDirName);
-        fs.mkdirSync(targetDir, { recursive: true });
+        const targetDir = verifyCurationDirectory(targetDirName);
         const sourcePath = safeJoin(state.folder, file);
         let destPath = path.join(targetDir, path.basename(file));
         // avoid clobbering an existing file with the same name
@@ -535,8 +746,9 @@ const server = http.createServer(async (req, res) => {
       if (!lastDecision) return json(res, 400, { error: 'Nothing to undo' });
       if (lastDecision.action === 'reject' || lastDecision.action === 'keep') {
         const targetDirName = lastDecision.action === 'reject' ? REJECTED_DIR_NAME : KEEP_DIR_NAME;
+        const targetDir = verifyCurationDirectory(targetDirName);
         const movedName = lastDecision.movedAs || path.basename(lastDecision.file);
-        const sourcePath = path.join(state.folder, targetDirName, movedName);
+        const sourcePath = path.join(targetDir, movedName);
         if (fs.existsSync(sourcePath)) {
           fs.renameSync(sourcePath, safeJoin(state.folder, lastDecision.file));
         }
@@ -557,6 +769,13 @@ const server = http.createServer(async (req, res) => {
 
     // --- video stream ---
     if (req.method === 'GET' && url.pathname === '/video') {
+      if (activeVideoStreams >= 5) {
+        return json(res, 503, { error: 'Too many concurrent video streams' });
+      }
+      activeVideoStreams++;
+      res.on('close', () => {
+        activeVideoStreams = Math.max(0, activeVideoStreams - 1);
+      });
       return streamVideo(req, res, url.searchParams.get('f') || '');
     }
 
@@ -603,6 +822,11 @@ if (BANNED_PORTS.has(PORT)) {
   showNativeErrorDialog(errorMsg, 'Security Violation');
   throw new Error(errorMsg);
 }
+
+server.maxConnections = 100;
+server.headersTimeout = 5000;
+server.requestTimeout = 30000;
+server.keepAliveTimeout = 2000;
 
 if (state.folder) {
   try {

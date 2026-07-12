@@ -41,8 +41,12 @@ function updateHud(status) {
 }
 
 async function api(path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (window.API_TOKEN) {
+    headers['X-API-Token'] = window.API_TOKEN;
+  }
   const response = await fetch(path, body
-    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    ? { method: 'POST', headers, body: JSON.stringify(body) }
     : undefined);
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || response.statusText);
@@ -162,7 +166,10 @@ document.addEventListener('keydown', (event) => {
 // Keep-alive: ping while open so the server knows we're here; a close beacon
 // tells it to shut down promptly.
 setInterval(() => { fetch('/api/ping').catch(() => {}); }, 3000);
-window.addEventListener('pagehide', () => { navigator.sendBeacon('/api/bye'); });
+window.addEventListener('pagehide', () => {
+  const token = window.API_TOKEN ? '?t=' + encodeURIComponent(window.API_TOKEN) : '';
+  navigator.sendBeacon('/api/bye' + token);
+});
 
 (async function init() {
   try {
