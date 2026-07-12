@@ -259,6 +259,7 @@ kbd {
   border-radius: var(--radius-lg);
   pointer-events: none;
   opacity: 0;
+  z-index: 9999;
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
 #flash.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
