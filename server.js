@@ -246,7 +246,12 @@ function validateFolderPath(folderPath) {
   try {
     resolved = fs.realpathSync(resolved);
   } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
+    // Best-effort symlink canonicalization: the path may not exist yet, or
+    // realpath may be unsupported for the underlying volume (e.g. mapped
+    // network drives / virtual drives on Windows that don't fully implement
+    // reparse-point resolution). Fall back to the non-canonicalized path
+    // rather than blocking folder selection outright; the prohibited-dir
+    // check below still runs against it.
   }
 
   if (process.platform === 'win32') {
@@ -824,9 +829,15 @@ if (BANNED_PORTS.has(PORT)) {
 }
 
 server.maxConnections = 100;
-server.headersTimeout = 5000;
+// keepAliveTimeout must comfortably exceed the client's 3s heartbeat
+// interval (see app.js) — otherwise the server can close a pooled
+// keep-alive socket just as the browser reuses it, which surfaces to
+// fetch() as "Failed to fetch" (ECONNRESET). headersTimeout is kept above
+// keepAliveTimeout, as Node recommends, to leave room for a reused
+// connection's next request headers to arrive.
+server.keepAliveTimeout = 8000;
+server.headersTimeout = 9000;
 server.requestTimeout = 30000;
-server.keepAliveTimeout = 2000;
 
 if (state.folder) {
   try {
