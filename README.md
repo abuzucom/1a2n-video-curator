@@ -3,9 +3,9 @@
 A local, zero-dependency web app for triaging a folder of videos. It plays them
 in shuffled order; you press **Keep** or **Reject** on each.
 
-- **Keep** — leaves the file where it is.
+- **Keep** — moves the file into a `_keep` subfolder.
 - **Reject** — moves the file into a `_rejected` subfolder.
-- **Undo** — reverses the last decision (restores a rejected file).
+- **Undo** — reverses the last decision (restores a rejected or kept file back to the root folder).
 
 ## Requirements
 
@@ -20,7 +20,9 @@ node server.js "C:\path\to\your\videos"
 ```
 
 Then open http://localhost:4321. Without a folder argument, the page prompts for
-one. An optional second argument sets the port: `node server.js "C:\videos" 5000`.
+one. You can paste the absolute path or click the **Browse...** button to launch
+the native OS folder picker dialogue. An optional second argument sets the port:
+`node server.js "C:\videos" 5000`.
 
 ## Controls
 
@@ -62,10 +64,10 @@ does not carry across runs.
 - Supported extensions: mp4, m4v, webm, mov, ogv, mkv, avi. Browsers can't decode
   every codec (e.g. most `.avi`, some `.mkv`/`.mov`); for those the page shows the
   filename with a "cannot play" note and you can still keep or reject.
-- The server listens only on localhost and rejects requests whose `Host` header
-  isn't a loopback name, which defends against DNS-rebinding from other sites.
-- It shuts down a few seconds after you close the browser tab; a refresh keeps it
-  alive.
+- The server binds strictly to the loopback interface (`127.0.0.1` / `::1`) and performs an address safety check at startup, immediately refusing to start if run on any non-loopback interface. It rejects requests whose `Host` header isn't a loopback name, which defends against DNS-rebinding.
+- Strict folder path validation checks are applied: web URLs, file paths with extensions, non-local network/UNC paths, system directories (like `%windir%` on Windows, or `/boot`, `/etc`, `/root`, `/proc`, `/sys` on Linux/macOS), IP hosts, and names containing emojis or box-drawing characters are rejected. Korean, Chinese, Japanese, Arabic, and Vietnamese script folders are fully supported.
+- Offline execution: to prevent external network egress, the server validates localhost mappings directly via the local hosts file without querying remote DNS servers.
+- It shuts down a few seconds after you close the browser tab; a refresh keeps it alive.
 
 ## License
 
