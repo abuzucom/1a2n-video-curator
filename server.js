@@ -8,7 +8,7 @@ const { exec, execSync } = require('child_process');
 const net = require('net');
 const os = require('os');
 
-const PORT = Number(process.argv[3]) || 4321;
+let PORT = Number(process.argv[3]) || 4321;
 const REJECTED_DIR_NAME = '_rejected';
 const KEEP_DIR_NAME = '_keep';
 const PROGRESS_FILE = '.video-curator-progress.json';
@@ -42,6 +42,7 @@ const ASSETS = {
 };
 
 function isGuiAvailable() {
+  if (process.env.TESTING) return false;
   if (process.platform === 'win32') {
     const session = process.env.SESSIONNAME;
     if (session && session.toLowerCase().startsWith('services')) {
@@ -567,6 +568,42 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+let fallbackAttempted = false;
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    if (PORT === 4321 && !fallbackAttempted) {
+      fallbackAttempted = true;
+      PORT = 4322;
+      const warnMsg = `Caution: Port 4321 is already in use. There might be a zombie instance of this application already running. Trying fallback port 4322...`;
+      console.warn(warnMsg);
+      showNativeErrorDialog(warnMsg, 'Zombie Instance Warning');
+      server.listen(PORT, '127.0.0.1', onListening);
+      return;
+    }
+    if (PORT === 4322) {
+      const errorMsg = `Security Exception: Port 4322 is already in use. Please close out the dead processes first.`;
+      console.error(errorMsg);
+      showNativeErrorDialog(errorMsg, 'Port Conflict');
+      throw new Error(errorMsg);
+    }
+    const errorMsg = `Security Exception: Port ${PORT} is already in use.`;
+    console.error(errorMsg);
+    showNativeErrorDialog(errorMsg, 'Port Conflict');
+    throw new Error(errorMsg);
+  }
+  console.error(err);
+  throw err;
+});
+
+const BANNED_PORTS = new Set([80, 8080, 443, 8443]);
+if (BANNED_PORTS.has(PORT)) {
+  const errorMsg = `Security Exception: Port ${PORT} is prohibited.`;
+  console.error(errorMsg);
+  showNativeErrorDialog(errorMsg, 'Security Violation');
+  throw new Error(errorMsg);
+}
+
 if (state.folder) {
   try {
     state.folder = validateFolderPath(state.folder);
@@ -594,7 +631,7 @@ process.on('exit', cleanupProgress);
 process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
 
-server.listen(PORT, '127.0.0.1', () => {
+function onListening() {
   const addr = server.address();
   if (!addr || (addr.address !== '127.0.0.1' && addr.address !== '::1')) {
     const errorMsg = `Security Exception: Server is running on a non-loopback interface (${addr ? addr.address : 'unknown'}). Refusing to start.`;
@@ -604,4 +641,6 @@ server.listen(PORT, '127.0.0.1', () => {
   }
   console.log(`Video Curator running at http://localhost:${PORT}`);
   if (!state.folder) console.log('No folder given - enter one in the browser page.');
-});
+}
+
+server.listen(PORT, '127.0.0.1', onListening);
