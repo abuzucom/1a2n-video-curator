@@ -2,3 +2,20 @@
 node_modules/
 _rejected/
 .video-curator-progress.json
+dist/
+.next/
+*.lock
+*.log
+coverage/
+.env*
+!.env.example
+__pycache__/
+
+# Ignore duplicate rule copies for other tools
+.cursorrules
+.clinerules
+.windsurfrules
+.copilot-instructions
+.github/copilot-instructions.md
+GEMINI.md
+CONVENTIONS.md

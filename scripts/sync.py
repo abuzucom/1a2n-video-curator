@@ -1,58 +1,69 @@
 #!/usr/bin/env python3
-"""Sync AGENTS.md to the tool-specific instruction file copies.
-
-Usage:
-  python3 scripts/sync.py            # overwrite stale copies
-  python3 scripts/sync.py --check    # report drift, no writes, exit 1 if stale
-"""
-
+"""Sync AGENTS.md to tool-specific copies. --check verifies without writing."""
+import shutil
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE = REPO_ROOT / "AGENTS.md"
-TARGETS = [
-    REPO_ROOT / "CLAUDE.md",
-    REPO_ROOT / "GEMINI.md",
-    REPO_ROOT / "CONVENTIONS.md",
-    REPO_ROOT / ".cursorrules",
-    REPO_ROOT / ".clinerules",
-    REPO_ROOT / ".windsurfrules",
+SOURCE = "AGENTS.md"
+COPIES = [
+    "CLAUDE.md",
+    "GEMINI.md",
+    "CONVENTIONS.md",
+    ".cursorrules",
+    ".clinerules",
+    ".windsurfrules",
+    ".copilot-instructions",
+    ".github/copilot-instructions.md",
 ]
 
 
-def sync_copies(check_only: bool) -> bool:
-    """Sync SOURCE content to each stale target. Return True if all are in sync."""
-    if not SOURCE.is_file():
-        print(f"error: source file not found: {SOURCE}", file=sys.stderr)
-        sys.exit(1)
-
-    source_content = SOURCE.read_text()
-    all_synced = True
-
-    for target in TARGETS:
-        if target.is_file() and target.read_text() == source_content:
-            continue
-
-        all_synced = False
-        if check_only:
-            print(f"stale: {target.relative_to(REPO_ROOT)}")
-        else:
-            target.write_text(source_content)
-            print(f"updated: {target.relative_to(REPO_ROOT)}")
-
-    return all_synced
+def files_match(source: Path, target: Path) -> bool:
+    """Compare file contents, normalizing line endings."""
+    try:
+        if not target.is_file():
+            return False
+        return (
+            source.read_text(encoding="utf-8").replace("\r\n", "\n")
+            == target.read_text(encoding="utf-8").replace("\r\n", "\n")
+        )
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
-def main() -> None:
-    check_only = "--check" in sys.argv[1:]
-    all_synced = sync_copies(check_only)
+def sync_copies(check_only: bool) -> int:
+    """Copy SOURCE over each target, or with --check report stale targets.
+
+    Returns a process exit code: 0 on success, 1 if a check fails.
+    """
+    root = Path(__file__).resolve().parent.parent
+    source = root / SOURCE
+    if not source.is_file():
+        print(f"error: {SOURCE} not found at {root}", file=sys.stderr)
+        return 1
+
+    stale = [
+        name
+        for name in COPIES
+        if not files_match(source, root / name)
+    ]
 
     if check_only:
-        if all_synced:
-            print("all copies in sync")
-        sys.exit(0 if all_synced else 1)
+        if stale:
+            print(f"out of sync with {SOURCE}: {', '.join(stale)}", file=sys.stderr)
+            print("run: make sync (or python scripts/sync.py)", file=sys.stderr)
+            return 1
+        print("all copies in sync")
+        return 0
+
+    for name in stale:
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        print(f"synced {name}")
+    if not stale:
+        print("all copies already in sync")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(sync_copies(check_only="--check" in sys.argv[1:]))
