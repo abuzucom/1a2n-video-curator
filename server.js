@@ -333,6 +333,12 @@ function rateLimit(key, limit, windowMs) {
 
 let lastSeen = 0;
 let watchdog = null;
+// Native folder dialogs steal OS focus from the browser tab, and background
+// tabs get their setInterval heartbeat throttled by the browser — so the
+// ping can legitimately stall past IDLE_SHUTDOWN_MS while the user is just
+// browsing folders. Suppress the watchdog while a dialog is open so the
+// server isn't mistaken for an abandoned tab and killed mid-pick.
+let openDialogs = 0;
 
 // Mark a browser check-in and lazily start a watchdog that exits once
 // heartbeats stop (tab/browser closed). soon=true (unload beacon) shortens the
@@ -341,6 +347,7 @@ function touch(soon = false) {
   lastSeen = soon ? Date.now() - (IDLE_SHUTDOWN_MS - 3000) : Date.now();
   if (watchdog) return;
   watchdog = setInterval(() => {
+    if (openDialogs > 0) return;
     if (Date.now() - lastSeen > IDLE_SHUTDOWN_MS) {
       console.log('Browser closed — shutting down.');
       process.exit(0);
@@ -689,8 +696,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/browse') {
+      openDialogs++;
       try {
         const folder = await showNativeFolderPicker();
+        touch();
         if (folder) {
           const validated = validateFolderPath(folder);
           return json(res, 200, { folder: validated });
@@ -698,6 +707,8 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { folder: null });
       } catch (err) {
         return json(res, 400, { error: err.message });
+      } finally {
+        openDialogs--;
       }
     }
 
