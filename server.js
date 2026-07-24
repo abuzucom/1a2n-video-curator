@@ -107,16 +107,20 @@ function showNativeFolderPicker() {
     if (process.platform === 'win32') {
       execFile('powershell.exe', [
         '-NoProfile',
+        '-Sta',
         '-WindowStyle', 'Hidden',
         '-Command',
-        // A TopMost owner form is required so the dialog comes to the
-        // foreground instead of opening behind the browser window: Node
-        // has no window of its own, so Windows' focus-stealing prevention
-        // otherwise leaves the dialog stuck behind the active window.
-        "Add-Type -AssemblyName System.Windows.Forms; $owner = New-Object System.Windows.Forms.Form -Property @{TopMost=$true}; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Video Folder'; $f.ShowNewFolderButton = $false; $r = $f.ShowDialog($owner); $owner.Dispose(); if ($r -eq 'OK') { Write-Output $f.SelectedPath }"
-      ], { windowsHide: true }, (error, stdout) => {
+        // Wrapped in try/catch so a failure (e.g. an apartment-state
+        // error) is reported as a nonzero exit instead of silently
+        // looking like the user canceled. A TopMost owner form is
+        // required so the dialog comes to the foreground instead of
+        // opening behind the browser window: Node has no window of its
+        // own, so Windows' focus-stealing prevention otherwise leaves
+        // the dialog stuck behind the active window.
+        "try { Add-Type -AssemblyName System.Windows.Forms; $owner = New-Object System.Windows.Forms.Form -Property @{TopMost=$true}; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Video Folder'; $f.ShowNewFolderButton = $false; $r = $f.ShowDialog($owner); $owner.Dispose(); if ($r -eq 'OK') { Write-Output $f.SelectedPath } } catch { Write-Error $_.Exception.Message; exit 1 }"
+      ], { windowsHide: true }, (error, stdout, stderr) => {
         if (error) {
-          return reject(new Error('Failed to open directory dialog: ' + error.message));
+          return reject(new Error('Failed to open directory dialog: ' + (stderr ? stderr.trim() : error.message)));
         }
         resolve(stdout.trim() || null);
       });
