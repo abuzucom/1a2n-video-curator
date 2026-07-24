@@ -187,7 +187,6 @@ function showNativeFolderPicker() {
       child = execFile('powershell.exe', [
         '-NoProfile',
         '-Sta',
-        '-WindowStyle', 'Hidden',
         '-Command',
         // Wrapped in try/catch so a failure (e.g. an apartment-state
         // error) is reported as a nonzero exit instead of silently
@@ -195,7 +194,14 @@ function showNativeFolderPicker() {
         // required so the dialog comes to the foreground instead of
         // opening behind the browser window: Node has no window of its
         // own, so Windows' focus-stealing prevention otherwise leaves
-        // the dialog stuck behind the active window.
+        // the dialog stuck behind the active window. Deliberately no
+        // '-WindowStyle Hidden' here: that flag can leave WinForms
+        // dialogs created later in the same process permanently
+        // invisible and unfocusable, even with a TopMost owner --
+        // confirmed by the dialog working when run interactively but
+        // hanging forever when launched this way with it set. The
+        // transient console window is still suppressed via `windowsHide`
+        // below (CREATE_NO_WINDOW), which doesn't have this side effect.
         "try { Add-Type -AssemblyName System.Windows.Forms; $owner = New-Object System.Windows.Forms.Form -Property @{TopMost=$true}; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Video Folder'; $f.ShowNewFolderButton = $false; $r = $f.ShowDialog($owner); $owner.Dispose(); if ($r -eq 'OK') { Write-Output $f.SelectedPath } } catch { Write-Error $_.Exception.Message; exit 1 }"
       ], { windowsHide: true }, (error, stdout, stderr) => {
         if (error) {
