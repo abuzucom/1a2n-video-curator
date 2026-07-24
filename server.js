@@ -135,9 +135,17 @@ function showNativeFolderPicker() {
         '--title=Select a folder containing your videos'
       ], (error, stdout) => {
         if (error) {
+          if (error.code !== 'ENOENT') {
+            return resolve(null); // user canceled the dialog
+          }
           execFile('kdialog', ['--getexistingdirectory'], (fbError, fbStdout) => {
             if (fbError) {
-              return resolve(null);
+              if (fbError.code !== 'ENOENT') {
+                return resolve(null); // user canceled the dialog
+              }
+              return reject(new Error(
+                'No folder-picker tool found (zenity or kdialog). Install one, or paste the folder path directly.'
+              ));
             }
             resolve(fbStdout.trim() || null);
           });
