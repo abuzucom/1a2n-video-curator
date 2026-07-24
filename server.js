@@ -107,6 +107,34 @@ function showNativeErrorDialog(message, title = 'Security Error') {
   }
 }
 
+// Best-effort cleanup of a previous, still-running instance of this exact
+// server.js (e.g. one left over from a crashed browser tab or a hung
+// folder dialog) so a fresh launch doesn't get bounced to the fallback
+// port just because a zombie is squatting on 4321. Matches only processes
+// whose command line contains this file's own path, and never the current
+// process, so it can't touch an unrelated Node app on the machine. The
+// script path and current PID are passed via environment variables rather
+// than interpolated into the command string, same precaution used for
+// showNativeErrorDialog's dialog text.
+function killStaleWindowsInstances() {
+  if (process.platform !== 'win32' || process.env.TESTING) return;
+  try {
+    execFileSync('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      'Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" | ' +
+      'Where-Object { $_.ProcessId -ne [int]$env:VC_CURRENT_PID -and $_.CommandLine -like ("*" + $env:VC_SCRIPT_PATH + "*") } | ' +
+      'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'
+    ], {
+      stdio: 'ignore',
+      env: { ...process.env, VC_SCRIPT_PATH: __filename, VC_CURRENT_PID: String(process.pid) },
+    });
+  } catch (err) {
+    // Best-effort only: a launch should still proceed (and fall back to
+    // port 4322 via the existing EADDRINUSE handling) even if this fails.
+  }
+}
+
 // Cap how long a folder dialog can stay open. Without this, a hung dialog
 // process (AV interference, an owner form that never disposes, etc.) would
 // leave its promise unsettled forever, which permanently suppresses the
@@ -958,4 +986,5 @@ function onListening() {
   openBrowser(`http://localhost:${PORT}`);
 }
 
+killStaleWindowsInstances();
 server.listen(PORT, '127.0.0.1', onListening);

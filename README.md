@@ -19,8 +19,10 @@ Double-click `start.cmd`, or from a terminal:
 node server.js "C:\path\to\your\videos"
 ```
 
-The server opens your default browser automatically once it's ready (falling
-back to port 4322 if 4321 is already in use). Without a folder argument, the
+The server opens your default browser automatically once it's ready. On
+Windows it also cleans up any still-running instance of itself first (e.g.
+one left over from a crashed tab), falling back to port 4322 if 4321 is
+still in use afterward. Without a folder argument, the
 page prompts for one. You can paste the absolute path or click the
 **Browse...** button to launch the native OS folder picker dialogue. An
 optional second argument sets the port: `node server.js "C:\videos" 5000`.
