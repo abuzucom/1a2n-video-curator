@@ -1,5 +1,6 @@
 @echo off
-rem Video Curator launcher - opens the browser once the server is up.
+rem Video Curator launcher - the server opens the browser itself once it
+rem is actually listening (see openBrowser in server.js), so it always
+rem lands on the real port even if a fallback port was used.
 rem Usage: start.cmd ["C:\path\to\videos"]
-start "" /min cmd /c "timeout /t 1 >nul & start "" http://localhost:4321"
 node "%~dp0server.js" %*
