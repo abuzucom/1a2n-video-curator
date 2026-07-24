@@ -19,10 +19,11 @@ Double-click `start.cmd`, or from a terminal:
 node server.js "C:\path\to\your\videos"
 ```
 
-Then open http://localhost:4321. Without a folder argument, the page prompts for
-one. You can paste the absolute path or click the **Browse...** button to launch
-the native OS folder picker dialogue. An optional second argument sets the port:
-`node server.js "C:\videos" 5000`.
+The server opens your default browser automatically once it's ready (falling
+back to port 4322 if 4321 is already in use). Without a folder argument, the
+page prompts for one. You can paste the absolute path or click the
+**Browse...** button to launch the native OS folder picker dialogue. An
+optional second argument sets the port: `node server.js "C:\videos" 5000`.
 
 ## Controls
 

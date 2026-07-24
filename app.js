@@ -181,6 +181,6 @@ window.addEventListener('pagehide', () => {
     updateHud(status);
     await loadNext();
   } catch (error) {
-    showMessage('Error', error.message);
+    showMessage('Error', error.message, true);
   }
 })();

@@ -69,10 +69,15 @@ function showNativeErrorDialog(message, title = 'Security Error') {
     };
 
     if (process.platform === 'win32') {
+      // A TopMost owner form is required so the dialog comes to the
+      // foreground instead of opening behind the browser window: Node has
+      // no window of its own, so Windows' focus-stealing prevention
+      // otherwise leaves it stuck behind the active window (same issue
+      // fixed for the folder-picker dialog below).
       execFileSync('powershell.exe', [
         '-NoProfile',
         '-Command',
-        'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show($env:DIALOG_MSG, $env:DIALOG_TITLE, 0, 16)'
+        'Add-Type -AssemblyName System.Windows.Forms; $owner = New-Object System.Windows.Forms.Form -Property @{TopMost=$true}; [System.Windows.Forms.MessageBox]::Show($owner, $env:DIALOG_MSG, $env:DIALOG_TITLE, 0, 16); $owner.Dispose()'
       ], { stdio: 'ignore', env });
     } else if (process.platform === 'darwin') {
       execFileSync('osascript', [
@@ -102,10 +107,56 @@ function showNativeErrorDialog(message, title = 'Security Error') {
   }
 }
 
+// Cap how long a folder dialog can stay open. Without this, a hung dialog
+// process (AV interference, an owner form that never disposes, etc.) would
+// leave its promise unsettled forever, which permanently suppresses the
+// idle-shutdown watchdog (see openDialogs) and turns the server itself into
+// the kind of orphaned "zombie instance" it warns about elsewhere.
+const DIALOG_TIMEOUT_MS = 10 * 60 * 1000;
+
+// Open the default browser at the server's actual URL. Letting the server
+// itself do this (rather than a launcher script hardcoding a port) means
+// the browser always lands on whichever port the server actually bound —
+// including the fallback port used when the default is already taken.
+function openBrowser(url) {
+  if (!isGuiAvailable()) return;
+  // execFile's callback is required here even though we ignore success: with
+  // no callback, a failed spawn (e.g. a missing xdg-open) emits an unhandled
+  // 'error' event on the returned ChildProcess, which crashes the process.
+  const onOpenError = (err) => {
+    if (err) console.error(`Could not open browser automatically: ${err.message}`);
+  };
+  if (process.platform === 'win32') {
+    execFile('cmd.exe', ['/c', 'start', '', url], onOpenError);
+  } else if (process.platform === 'darwin') {
+    execFile('open', [url], onOpenError);
+  } else {
+    execFile('xdg-open', [url], onOpenError);
+  }
+}
+
 function showNativeFolderPicker() {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let child = null;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (child) child.kill();
+      reject(new Error('Folder dialog timed out waiting for a selection.'));
+    }, DIALOG_TIMEOUT_MS);
+    if (timer.unref) timer.unref();
+
+    function finish(fn, value) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    }
+
     if (process.platform === 'win32') {
-      execFile('powershell.exe', [
+      child = execFile('powershell.exe', [
         '-NoProfile',
         '-Sta',
         '-WindowStyle', 'Hidden',
@@ -120,47 +171,47 @@ function showNativeFolderPicker() {
         "try { Add-Type -AssemblyName System.Windows.Forms; $owner = New-Object System.Windows.Forms.Form -Property @{TopMost=$true}; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Video Folder'; $f.ShowNewFolderButton = $false; $r = $f.ShowDialog($owner); $owner.Dispose(); if ($r -eq 'OK') { Write-Output $f.SelectedPath } } catch { Write-Error $_.Exception.Message; exit 1 }"
       ], { windowsHide: true }, (error, stdout, stderr) => {
         if (error) {
-          return reject(new Error('Failed to open directory dialog: ' + (stderr ? stderr.trim() : error.message)));
+          return finish(reject, new Error('Failed to open directory dialog: ' + (stderr ? stderr.trim() : error.message)));
         }
-        resolve(stdout.trim() || null);
+        finish(resolve, stdout.trim() || null);
       });
     } else if (process.platform === 'darwin') {
-      execFile('osascript', [
+      child = execFile('osascript', [
         '-e',
         'POSIX path of (choose folder with prompt "Select a folder containing your videos")'
       ], (error, stdout) => {
         if (error) {
           if (error.message.includes('User canceled')) {
-            return resolve(null);
+            return finish(resolve, null);
           }
-          return reject(new Error('Failed to open directory dialog: ' + error.message));
+          return finish(reject, new Error('Failed to open directory dialog: ' + error.message));
         }
-        resolve(stdout.trim() || null);
+        finish(resolve, stdout.trim() || null);
       });
     } else {
-      execFile('zenity', [
+      child = execFile('zenity', [
         '--file-selection',
         '--directory',
         '--title=Select a folder containing your videos'
       ], (error, stdout) => {
         if (error) {
           if (error.code !== 'ENOENT') {
-            return resolve(null); // user canceled the dialog
+            return finish(resolve, null); // user canceled the dialog
           }
-          execFile('kdialog', ['--getexistingdirectory'], (fbError, fbStdout) => {
+          child = execFile('kdialog', ['--getexistingdirectory'], (fbError, fbStdout) => {
             if (fbError) {
               if (fbError.code !== 'ENOENT') {
-                return resolve(null); // user canceled the dialog
+                return finish(resolve, null); // user canceled the dialog
               }
-              return reject(new Error(
+              return finish(reject, new Error(
                 'No folder-picker tool found (zenity or kdialog). Install one, or paste the folder path directly.'
               ));
             }
-            resolve(fbStdout.trim() || null);
+            finish(resolve, fbStdout.trim() || null);
           });
           return;
         }
-        resolve(stdout.trim() || null);
+        finish(resolve, stdout.trim() || null);
       });
     }
   });
@@ -904,6 +955,7 @@ function onListening() {
   }
   console.log(`Video Curator running at http://localhost:${PORT}`);
   if (!state.folder) console.log('No folder given - enter one in the browser page.');
+  openBrowser(`http://localhost:${PORT}`);
 }
 
 server.listen(PORT, '127.0.0.1', onListening);
