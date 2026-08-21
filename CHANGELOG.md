@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Set the `package.json` `author` field to the GitHub noreply address, so the
+  package metadata carries no private address and links to the GitHub account.
 - Resynced `AGENTS.md` and its tool-specific copies with the current
   `abuzucom/agents` template: added the secrets, dependency-authorization,
   verify-state, and CI `persist-credentials` critical rules, adopted the
