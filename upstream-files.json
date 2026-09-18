@@ -168,6 +168,7 @@
     "README.md": "0c01064aa7fb34a149dbaaa9ad41bf7da771572f7f05cea5558a933ed3cf1d00",
     "adopters/1a2n-video-curator.md": "42f88b8a97bd248fcf234791c4a6aff995d0369bd7492938005975d1c6d47037",
     "scripts/check_pr_review_response.py": "c190978c57912af3848ac8bed16cf8dfa0be5751ffa7953b5450084465b79265",
-    "scripts/sync.py": "f47e2765332279e6378e5687240304c346ed46184bf8a3599910c7d6f64794a5"
+    "scripts/sync.py": "f47e2765332279e6378e5687240304c346ed46184bf8a3599910c7d6f64794a5",
+    "tests/test_check_pr_review_response.py": "98d220f9a2b502af86b92986b44b55762f92e71a5dd387557a51c1b5c71a70ef"
   }
 }
