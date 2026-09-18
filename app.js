@@ -13,9 +13,43 @@ const btnMute = document.getElementById('btn-mute');
 const muteLabel = document.getElementById('mute-label');
 const flash = document.getElementById('flash');
 const btnBrowse = document.getElementById('btn-browse');
+const themeMeta = document.querySelector('meta[name="theme-color"]');
+const themeButtons = document.querySelectorAll('.theme-btn');
+
+const THEME_COLORS = {
+  dark: '#0B0B0B',
+  grey: '#D6D3CD',
+  light: '#F5F3EE',
+};
 
 let current = null;
 let busy = false;
+
+function applyTheme(theme) {
+  const chosen = (theme === 'grey' || theme === 'light') ? theme : 'dark';
+  document.documentElement.setAttribute('data-theme', chosen);
+  if (themeMeta) {
+    themeMeta.setAttribute('content', THEME_COLORS[chosen] || '#0B0B0B');
+  }
+  try {
+    localStorage.setItem('video-curator-theme', chosen);
+  } catch (_) {}
+  themeButtons.forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme-choice') === chosen);
+  });
+}
+
+themeButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    applyTheme(btn.getAttribute('data-theme-choice'));
+  });
+});
+
+let savedTheme = 'dark';
+try {
+  savedTheme = localStorage.getItem('video-curator-theme') || 'dark';
+} catch (_) {}
+applyTheme(savedTheme);
 
 function showMessage(title, body, showForm = false) {
   player.classList.add('hidden');
@@ -36,7 +70,7 @@ function showFlash(action) {
 
 function updateHud(status) {
   const total = status.remaining + status.reviewed;
-  counterEl.textContent = `${status.reviewed} reviewed · ${status.remaining} left of ${total}`;
+  counterEl.textContent = `${status.reviewed} reviewed | ${status.remaining} left of ${total}`;
   btnUndo.disabled = !status.canUndo;
 }
 
@@ -59,7 +93,10 @@ async function loadNext() {
   current = status.file;
   if (!current) {
     filenameEl.textContent = '';
-    showMessage('All done \u{1F389}', 'Every video in this folder has been reviewed. Kept videos are in the _keep subfolder; rejected ones are in the _rejected subfolder.');
+    showMessage(
+      'All done',
+      'Every video in this folder has been reviewed. Kept videos are in the _keep subfolder; rejected ones are in the _rejected subfolder.'
+    );
     return;
   }
   filenameEl.textContent = current;
@@ -97,7 +134,7 @@ async function undo() {
 }
 
 function updateMuteButton() {
-  muteLabel.textContent = player.muted ? '🔇 Unmute' : '🔊 Mute';
+  muteLabel.textContent = player.muted ? 'Unmute' : 'Mute';
 }
 
 function toggleMute() {
@@ -114,7 +151,7 @@ btnMute.addEventListener('click', toggleMute);
 
 player.addEventListener('error', () => {
   if (!current) return;
-  filenameEl.textContent = current + ' (cannot play in browser — keep or reject by filename, or undo)';
+  filenameEl.textContent = current + ' (cannot play in browser; keep or reject by filename, or undo)';
 });
 
 // Reaching the end without a decision counts as Keep.

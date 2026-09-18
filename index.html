@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0d1017">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0B0B0B">
   <title>Video Curator</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,20 +13,25 @@
     <h1 class="wordmark">Video Curator</h1>
     <span id="filename" class="filename" aria-live="polite"></span>
     <span id="counter" class="counter"></span>
+    <div class="theme-switcher" role="group" aria-label="Theme switcher">
+      <button class="theme-btn active" data-theme-choice="dark" type="button">Dark</button>
+      <button class="theme-btn" data-theme-choice="grey" type="button">Grey</button>
+      <button class="theme-btn" data-theme-choice="light" type="button">Light</button>
+    </div>
     <button id="btn-mute" class="btn btn-ghost btn-sm" type="button">
-      <span id="mute-label">🔇 Unmute</span> <kbd>M</kbd>
+      <span id="mute-label">Unmute</span> <kbd>M</kbd>
     </button>
   </header>
 
   <main class="stage">
     <video id="player" class="player hidden" controls autoplay muted></video>
     <div id="message" class="message">
-      <h2 id="msg-title">Loading…</h2>
+      <h2 id="msg-title">Loading</h2>
       <p id="msg-body"></p>
       <form id="folder-form" class="folder-form">
         <input id="folder-input" class="folder-input" type="text"
                placeholder="C:\path\to\your\videos" spellcheck="false" autocomplete="off">
-        <button id="btn-browse" class="btn btn-sm btn-ghost" type="button">Browse…</button>
+        <button id="btn-browse" class="btn btn-sm btn-ghost" type="button">Browse</button>
         <button type="submit" class="btn btn-sm">Start</button>
       </form>
     </div>
