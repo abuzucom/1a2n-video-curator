@@ -249,8 +249,6 @@ function showNativeFolderPicker() {
         '  $owner = New-Object System.Windows.Forms.Form -Property @{TopMost=$true};',
         '  $f = New-Object System.Windows.Forms.FolderBrowserDialog;',
         '  $f.Description = \'Select Video Folder\';',
-        '  $f.UseDescriptionForTitle = $true;',
-        '  $f.AutoUpgradeEnabled = $true;',
         '  $f.ShowNewFolderButton = $false;',
         '  $r = $f.ShowDialog($owner);',
         '  $owner.Dispose();',
@@ -482,7 +480,6 @@ let state = {
   queue: [],        // shuffled filenames still to review
   history: [],      // [{ file, action: 'keep'|'reject' }] this session, for undo
   reviewedCount: 0, // in-memory count of reviewed videos
-};
 };
 
 let activeVideoStreams = 0;
