@@ -1,0 +1,23 @@
+{
+  "agents-policy": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "python ../hooks/reinject_agents_policy.py --client antigravity",
+        "timeout": 30
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ../hooks/enforce_branch_name.py --client antigravity",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

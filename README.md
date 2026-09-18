@@ -3,9 +3,9 @@
 A local, zero-dependency web app for triaging a folder of videos. It plays them
 in shuffled order; you press **Keep** or **Reject** on each.
 
-- **Keep** — moves the file into a `_keep` subfolder.
-- **Reject** — moves the file into a `_rejected` subfolder.
-- **Undo** — reverses the last decision (restores a rejected or kept file back to the root folder).
+- **Keep**: moves the file into a `_keep` subfolder.
+- **Reject**: moves the file into a `_rejected` subfolder.
+- **Undo**: reverses the last decision (restores a rejected or kept file back to the root folder).
 
 ## Requirements
 
@@ -38,7 +38,7 @@ optional second argument sets the port: `node server.js "C:\videos" 5000`.
 | `Space` | Play / pause |
 
 Videos start muted; click **Unmute** (or press `M`) to enable sound. Each video
-plays through once — reaching the end without a decision counts as **Keep** and
+plays through once. Reaching the end without a decision counts as **Keep** and
 the next one loads. The player has normal controls for scrubbing, volume, and
 fullscreen.
 
@@ -72,6 +72,11 @@ does not carry across runs.
 - Offline execution: to prevent external network egress, the server validates localhost mappings directly via the local hosts file without querying remote DNS servers.
 - It shuts down a few seconds after you close the browser tab; a refresh keeps it alive.
 
+## Contributing
+
+Every repository action requires an active-user request. Do not run Git commands before consent.
+Use `scripts/read_git_state.py` for state checks.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

@@ -1,0 +1,22 @@
+{
+  "note": "SHA-256 of every file that must stay byte-identical across the repositories adopting these gates. Line endings are normalized before hashing. Regenerate with scripts/sync.py --write-shared and commit the result in every one of them.",
+  "shared": {
+    "hooks/_bash_parser.py": "082d48b1565f28f13a954efd123471266d4a3bfaecbbc58fd078d304e339961d",
+    "hooks/_cmd_parser.py": "4212670bc4166a5f89be120ceb6bafbc854d16743ff900f4b596b7b79fa5981b",
+    "hooks/_gate_core.py": "dc9fc0bf385262b0b394bb076e6f204a355960bfc03e5010504cc0a03914e59a",
+    "hooks/_platform_policy.py": "9cfbbee6b9a6e9e90d7d8faee8df61cf5d43ee6aa488f1e6aa563499d0d44dd9",
+    "hooks/block_destructive_bash.py": "f4c5884e64dcee4643eea20e5263b8a244654cbcefb12ca3b2742b83cfa14626",
+    "hooks/block_destructive_cmd.py": "7740e565354e175db1031690a9fb021db01c4ac8205f1c83cfa045e99e2a27d5",
+    "hooks/block_destructive_powershell.py": "07bcf8d15e7bd1b65cc6f948a5c2df28c60e5c4d90d40569a23d916dc7d6d549",
+    "hooks/github-command-denylist.txt": "76f3cb2f01e9771c772e35d7d10545afc47bde44b77c1c274f8c36af5612a6b6",
+    "hooks/reinject_agents_policy.py": "20cede35468f17c651e75b101efc071b6dcfd22d17eb95c44afe7d7c832126d8",
+    "hooks/require_consent.py": "cd1ba6f5a85007ad4ca79436eac42a6c93751eb367aa58a8da0bf4302f2d2c3d",
+    "tests/gate_corpus.py": "c7665b3759a6b601520ff01e99cc6ec31dd8a6cb7ff9261f8bbb60e7a7e64528",
+    "tests/json_line_worker.py": "57cbf9ed4c57506201e9c9e4ae57d6b8a330d5ede2f8fb76f0c4f72dae55fc0b",
+    "tests/json_line_worker_child.py": "bad155acd0f37cf37e0ed12ac6c35755a27b987a541977c48d52076912d0e83c",
+    "tests/test_block_destructive_bash.py": "18c508824bc1f10142231191f41eaa44602e8ad821b4e3ed248c0b4c61524fa8",
+    "tests/test_block_destructive_cmd.py": "80d8a3039dd5a9cfba4c2ffa38560b10be43a7ae976cadbed28ca9cef344798f",
+    "tests/test_block_destructive_powershell.py": "b5c01603e5d78b4e78710772e4f6e8ff5ff33a529f2030044d282fec0b32e6ce",
+    "tests/test_platform_policy.py": "769d5ab1a4a6580ba54a5a3cd6fa8c13dc646bb877085047a5298a1bfe9a70c5"
+  }
+}
