@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] (2026-09-18)
+
+### Changed
+
+- Cached compiled regular expression patterns at module level across `server.js`.
+- Replaced string concatenation with Buffer chunk accumulation in `readRequestBody`.
+- Extracted constant path and filename computations outside loops in `validateFolderPath`
+  and `POST /api/decide`.
+- Replaced prototype property lookups with Set lookups for unreviewed files in `scanFolder`.
+- Cached static assets in memory to eliminate repeated disk I/O.
+- Maintained an in-memory reviewed count in `state` to eliminate repeated JSON disk I/O
+  on `/api/status` and `/api/next`.
+
+## [1.3.4] (2026-09-18)
+
+### Changed
+
+- Replaced short variable names (`st`, `fd`, `fbErr`, `closeErr`, `btn`, `res`,
+  `startBtn`, `err`) with descriptive names across `server.js` and `app.js`.
+- Retained backward-compatible button aliases in `app.js`.
+
+## [1.3.3] (2026-09-18)
+
+### Changed
+
+- Added descriptive verb-noun naming and backward-compatible aliases for
+  functions across `server.js` and `app.js`.
+- Added JSDoc docstrings with purpose explanations and parameter/return type
+  hints for all functions in `server.js` and `app.js`.
+
+## [1.3.2] (2026-09-18)
+
+### Changed
+
+- Simplified conditional logic across `server.js` and `app.js` to return boolean
+  expressions directly instead of using verbose branches.
+- Streamlined `rateLimit` cache updates and removed redundant property checks.
+- Simplified `POST /api/browse` folder payload responses with a concise ternary.
+
+## [1.3.1] (2026-09-18)
+
+### Fixed
+
+- Resolved issue where clicking the Browse button did not display the
+  Windows File Explorer folder picker dialog. Removed hidden process window
+  suppression from the PowerShell invocation in `server.js`.
+- Configured the Windows folder picker to use the modern File Explorer
+  Common Item Dialog (`IFileOpenDialog`) with visual styles enabled.
+- Added visual feedback to the Browse button while the native folder picker
+  dialog is open.
+- Focused the Start button upon selecting a folder path from the picker.
+- Enforced path-confinement precondition checks before invoking filesystem
+  mutations and file reads in `loadProgress`, `saveProgress`, and
+  `verifyCurationDirectory`.
+- Removed redundant conditions checking already-guaranteed action values in
+  `POST /api/decide` and `POST /api/undo`.
+- Corrected range normalization order and eliminated redundant checks in
+  `streamVideo`.
+- Added defensive URL parsing for requests with missing or invalid Host headers.
+- Restricted folder-confinement errors to folder-dependent routes.
+- Eliminated contradictory completed-review message when triaging empty folders
+  in `app.js`.
+- Added explicit error handling and diagnostic logging to catch blocks across
+  `server.js` and `app.js` to prevent silent failures.
+
 ## [1.3.0] (2026-09-18)
 
 ### Added

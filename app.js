@@ -6,13 +6,18 @@ const folderForm = document.getElementById('folder-form');
 const folderInput = document.getElementById('folder-input');
 const filenameEl = document.getElementById('filename');
 const counterEl = document.getElementById('counter');
-const btnKeep = document.getElementById('btn-keep');
-const btnReject = document.getElementById('btn-reject');
-const btnUndo = document.getElementById('btn-undo');
-const btnMute = document.getElementById('btn-mute');
+const keepButton = document.getElementById('btn-keep');
+const rejectButton = document.getElementById('btn-reject');
+const undoButton = document.getElementById('btn-undo');
+const muteButton = document.getElementById('btn-mute');
 const muteLabel = document.getElementById('mute-label');
 const flash = document.getElementById('flash');
-const btnBrowse = document.getElementById('btn-browse');
+const browseButton = document.getElementById('btn-browse');
+const btnKeep = keepButton;
+const btnReject = rejectButton;
+const btnUndo = undoButton;
+const btnMute = muteButton;
+const btnBrowse = browseButton;
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 const themeButtons = document.querySelectorAll('.theme-btn');
 
@@ -25,6 +30,11 @@ const THEME_COLORS = {
 let current = null;
 let busy = false;
 
+/**
+ * Applies the specified color theme to the user interface.
+ * @param {string} theme - Chosen theme identifier ('dark', 'grey', or 'light').
+ * @returns {void}
+ */
 function applyTheme(theme) {
   const chosen = (theme === 'grey' || theme === 'light') ? theme : 'dark';
   document.documentElement.setAttribute('data-theme', chosen);
@@ -33,24 +43,35 @@ function applyTheme(theme) {
   }
   try {
     localStorage.setItem('video-curator-theme', chosen);
-  } catch (_) {}
-  themeButtons.forEach((btn) => {
-    btn.classList.toggle('active', btn.getAttribute('data-theme-choice') === chosen);
+  } catch (error) {
+    console.debug('Could not persist theme to localStorage:', error);
+  }
+  themeButtons.forEach((themeButton) => {
+    themeButton.classList.toggle('active', themeButton.getAttribute('data-theme-choice') === chosen);
   });
 }
 
-themeButtons.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    applyTheme(btn.getAttribute('data-theme-choice'));
+themeButtons.forEach((themeButton) => {
+  themeButton.addEventListener('click', () => {
+    applyTheme(themeButton.getAttribute('data-theme-choice'));
   });
 });
 
 let savedTheme = 'dark';
 try {
   savedTheme = localStorage.getItem('video-curator-theme') || 'dark';
-} catch (_) {}
+} catch (error) {
+  console.debug('Could not read theme from localStorage:', error);
+}
 applyTheme(savedTheme);
 
+/**
+ * Displays an informational or error message in the triage card.
+ * @param {string} title - Heading text for the message.
+ * @param {string} body - Explanatory body text.
+ * @param {boolean} [showForm=false] - Whether to display the folder input form.
+ * @returns {void}
+ */
 function showMessage(title, body, showForm = false) {
   player.classList.add('hidden');
   player.pause();
@@ -62,19 +83,35 @@ function showMessage(title, body, showForm = false) {
   if (showForm) folderInput.focus();
 }
 
+/**
+ * Displays a temporary visual action banner indicating the decision.
+ * @param {'keep'|'reject'} action - Applied triage decision.
+ * @returns {void}
+ */
 function showFlash(action) {
   flash.textContent = action === 'keep' ? 'KEPT' : 'REJECTED';
   flash.className = 'show ' + action;
   setTimeout(() => flash.classList.remove('show'), 350);
 }
 
+/**
+ * Updates review statistics and undo button state in the header HUD.
+ * @param {{remaining: number, reviewed: number, canUndo: boolean}} status - Current curation status.
+ * @returns {void}
+ */
 function updateHud(status) {
   const total = status.remaining + status.reviewed;
   counterEl.textContent = `${status.reviewed} reviewed | ${status.remaining} left of ${total}`;
   btnUndo.disabled = !status.canUndo;
 }
 
-async function api(path, body) {
+/**
+ * Sends an authenticated JSON request to the curation API.
+ * @param {string} path - Target API endpoint path.
+ * @param {object} [body] - Optional request body for POST requests.
+ * @returns {Promise<object>} Parsed response data.
+ */
+async function sendApiRequest(path, body) {
   const headers = { 'Content-Type': 'application/json' };
   if (window.API_TOKEN) {
     headers['X-API-Token'] = window.API_TOKEN;
@@ -86,27 +123,48 @@ async function api(path, body) {
   if (!response.ok) throw new Error(payload.error || response.statusText);
   return payload;
 }
+const api = sendApiRequest;
 
-async function loadNext() {
+/**
+ * Fetches and displays the next video file in the curation queue.
+ * @returns {Promise<void>}
+ */
+async function loadNextVideo() {
   const status = await api('/api/next');
   updateHud(status);
   current = status.file;
   if (!current) {
     filenameEl.textContent = '';
-    showMessage(
-      'All done',
-      'Every video in this folder has been reviewed. Kept videos are in the _keep subfolder; rejected ones are in the _rejected subfolder.'
-    );
+    if (status.reviewed > 0) {
+      showMessage(
+        'All done',
+        'Every video in this folder has been reviewed. Kept videos are in the _keep subfolder; rejected ones are in the _rejected subfolder.'
+      );
+    } else {
+      showMessage(
+        'No videos found',
+        'No video files were found in this folder. Please choose a folder containing videos.',
+        true
+      );
+    }
     return;
   }
   filenameEl.textContent = current;
   message.classList.add('hidden');
   player.classList.remove('hidden');
   player.src = '/video?f=' + encodeURIComponent(current);
-  player.play().catch(() => {});
+  player.play().catch((error) => {
+    console.debug('Autoplay prevented or interrupted:', error);
+  });
 }
+const loadNext = loadNextVideo;
 
-async function decide(action) {
+/**
+ * Submits a keep or reject triage decision for the current video.
+ * @param {'keep'|'reject'} action - Triage decision to apply.
+ * @returns {Promise<void>}
+ */
+async function submitDecision(action) {
   if (!current || busy) return;
   busy = true;
   try {
@@ -119,9 +177,14 @@ async function decide(action) {
     busy = false;
   }
 }
+const decide = submitDecision;
 
-async function undo() {
-  if (busy || btnUndo.disabled) return;
+/**
+ * Undoes the most recent triage decision and restores the video to the queue.
+ * @returns {Promise<void>}
+ */
+async function undoLastDecision() {
+  if (busy || undoButton.disabled) return;
   busy = true;
   try {
     await api('/api/undo', {});
@@ -132,11 +195,20 @@ async function undo() {
     busy = false;
   }
 }
+const undo = undoLastDecision;
 
+/**
+ * Updates the mute button text based on the player's muted state.
+ * @returns {void}
+ */
 function updateMuteButton() {
   muteLabel.textContent = player.muted ? 'Unmute' : 'Mute';
 }
 
+/**
+ * Toggles audio playback muting and refreshes the button label.
+ * @returns {void}
+ */
 function toggleMute() {
   player.muted = !player.muted;
   updateMuteButton();
@@ -144,10 +216,10 @@ function toggleMute() {
 
 updateMuteButton();
 
-btnKeep.addEventListener('click', () => decide('keep'));
-btnReject.addEventListener('click', () => decide('reject'));
-btnUndo.addEventListener('click', undo);
-btnMute.addEventListener('click', toggleMute);
+keepButton.addEventListener('click', () => decide('keep'));
+rejectButton.addEventListener('click', () => decide('reject'));
+undoButton.addEventListener('click', undo);
+muteButton.addEventListener('click', toggleMute);
 
 player.addEventListener('error', () => {
   if (!current) return;
@@ -157,17 +229,24 @@ player.addEventListener('error', () => {
 // Reaching the end without a decision counts as Keep.
 player.addEventListener('ended', () => decide('keep'));
 
-btnBrowse.addEventListener('click', async () => {
+browseButton.addEventListener('click', async () => {
+  browseButton.disabled = true;
+  browseButton.textContent = 'Browsing...';
   try {
-    const res = await api('/api/browse', {});
-    if (res.folder) {
-      folderInput.value = res.folder;
+    const browseResult = await api('/api/browse', {});
+    if (browseResult.folder) {
+      folderInput.value = browseResult.folder;
+      const startButton = folderForm.querySelector('button[type="submit"]');
+      if (startButton) startButton.focus();
     }
   } catch (error) {
     msgTitle.textContent = 'Error';
     msgBody.className = 'error-text';
     msgBody.textContent = error.message;
     folderForm.style.display = 'flex';
+  } finally {
+    browseButton.disabled = false;
+    browseButton.textContent = 'Browse';
   }
 });
 
@@ -195,14 +274,18 @@ document.addEventListener('keydown', (event) => {
     case 'm': event.preventDefault(); toggleMute(); break;
     case ' ':
       event.preventDefault();
-      if (player.paused) player.play(); else player.pause();
+      player.paused ? player.play() : player.pause();
       break;
   }
 });
 
 // Keep-alive: ping while open so the server knows we're here; a close beacon
 // tells it to shut down promptly.
-setInterval(() => { fetch('/api/ping').catch(() => {}); }, 3000);
+setInterval(() => {
+  fetch('/api/ping').catch((error) => {
+    console.debug('Keepalive ping failed:', error);
+  });
+}, 3000);
 window.addEventListener('pagehide', () => {
   const token = window.API_TOKEN ? '?t=' + encodeURIComponent(window.API_TOKEN) : '';
   navigator.sendBeacon('/api/bye' + token);
