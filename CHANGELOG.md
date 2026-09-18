@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implemented `abuzucom/viim` Dark, Grey, and Light theme variants with a
   header theme switcher persisting preference to `localStorage`.
 - Styled triage buttons with strict monochromatic visual hierarchy.
+- Added immutable cache-control and content-length headers for static font routes.
 
 ### Changed
 

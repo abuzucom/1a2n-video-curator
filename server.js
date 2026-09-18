@@ -751,14 +751,26 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/') {
       let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
       html = html.replace('</head>', `<script>window.API_TOKEN = "${API_TOKEN}";</script>\n</head>`);
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(html);
+      const buffer = Buffer.from(html, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': buffer.length,
+      });
+      return res.end(buffer);
     }
     const asset = ASSETS[url.pathname];
     if (req.method === 'GET' && asset) {
       const [file, type] = asset;
-      res.writeHead(200, { 'Content-Type': type });
-      return res.end(fs.readFileSync(path.join(__dirname, file)));
+      const content = fs.readFileSync(path.join(__dirname, file));
+      const headers = {
+        'Content-Type': type,
+        'Content-Length': content.length,
+      };
+      if (url.pathname.startsWith('/fonts/')) {
+        headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+      }
+      res.writeHead(200, headers);
+      return res.end(content);
     }
 
     // --- set / get folder ---
