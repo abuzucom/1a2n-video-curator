@@ -12,12 +12,10 @@ const undoButton = document.getElementById('btn-undo');
 const muteButton = document.getElementById('btn-mute');
 const muteLabel = document.getElementById('mute-label');
 const flash = document.getElementById('flash');
-const browseButton = document.getElementById('btn-browse');
 const btnKeep = keepButton;
 const btnReject = rejectButton;
 const btnUndo = undoButton;
 const btnMute = muteButton;
-const btnBrowse = browseButton;
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 const themeButtons = document.querySelectorAll('.theme-btn');
 
@@ -228,27 +226,6 @@ player.addEventListener('error', () => {
 
 // Reaching the end without a decision counts as Keep.
 player.addEventListener('ended', () => decide('keep'));
-
-browseButton.addEventListener('click', async () => {
-  browseButton.disabled = true;
-  browseButton.textContent = 'Browsing...';
-  try {
-    const browseResult = await api('/api/browse', {});
-    if (browseResult.folder) {
-      folderInput.value = browseResult.folder;
-      const startButton = folderForm.querySelector('button[type="submit"]');
-      if (startButton) startButton.focus();
-    }
-  } catch (error) {
-    msgTitle.textContent = 'Error';
-    msgBody.className = 'error-text';
-    msgBody.textContent = error.message;
-    folderForm.style.display = 'flex';
-  } finally {
-    browseButton.disabled = false;
-    browseButton.textContent = 'Browse';
-  }
-});
 
 folderForm.addEventListener('submit', async (event) => {
   event.preventDefault();
