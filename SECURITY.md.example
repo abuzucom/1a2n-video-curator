@@ -1,0 +1,70 @@
+# Security Policy
+
+<!-- Repository setup
+Complete every placeholder before committing.
+Rename this file to SECURITY.md.
+Drop .example from the file name.
+GitHub displays SECURITY.md in the vulnerability-reporting interface.
+Enable private vulnerability reporting under Settings > Security > Private
+vulnerability reporting.
+Delete this comment.
+-->
+
+## Supported Versions
+
+| Version | Supported |
+|---------|-----------|
+| `<supported version>` | Yes |
+| `<unsupported version>` | No |
+
+## Scope
+
+Scope includes code in this repository. Scope includes configuration in this
+repository. Scope includes third-party vulnerabilities when a selected version
+causes the defect. Scope includes third-party vulnerabilities when a selected
+pin causes the defect. Scope includes third-party vulnerabilities when
+configuration causes the defect. Scope includes third-party vulnerabilities
+when permissions cause the defect. Scope includes third-party vulnerabilities
+when an integration causes the defect. Route purely upstream defects to the
+upstream maintainers.
+
+Scope excludes social engineering. Scope excludes physical attacks.
+
+## Reporting a Vulnerability
+
+Report vulnerabilities through GitHub private vulnerability reporting. Open
+the Security tab. Select Report a vulnerability. Never open a public issue for
+a vulnerability report.
+
+Response timing: `<acknowledgment target>`.
+
+Remediation target: `<remediation target>`.
+
+## Disclosure Policy
+
+Coordinate disclosure with the maintainers. Keep the report private before a
+disclosure event. A shipped fix defines one disclosure event. Passage of
+`<disclosure deadline>` defines another disclosure event. Use the earlier
+event.
+
+## Agent policy security
+
+`AGENTS.md` is the canonical policy. Supporting policy documents live under
+`docs/agent-policy/`. The loader reads local files only. It rejects missing,
+malformed, non-ASCII, oversized, symlinked, special, absolute, and escaping
+paths. It assembles deterministic content and fails closed.
+
+Repository hooks provide defense in depth. Repository writers can modify them.
+Use an external harness, filesystem isolation, or server-side controls for
+tamper resistance.
+
+Hosted GitHub operations use the trusted wrapper. A managed Codex loopback
+proxy at `127.0.0.1:9` does not prove GitHub CLI failure. Agents cannot modify
+Git Credential Manager or refresh GitHub tokens through a browser.
+
+Controlled adopters must preserve license-required attribution and source
+metadata. Uncontrolled mirrors remain responsible for their own legal
+compliance. This repository cannot enforce or verify third-party practices.
+
+Every repository change requires a versioned SemVer changelog entry. Adopting
+repositories must not use `[Unreleased]`.

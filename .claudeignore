@@ -10,6 +10,7 @@ coverage/
 .env*
 !.env.example
 __pycache__/
+.foucault/
 
 # Ignore duplicate rule copies for other tools
 .cursorrules
