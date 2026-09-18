@@ -272,8 +272,6 @@ jobs:
           )"; then
             echo "final response failed structural validation:" >&2
             printf '%s\n' "$validation_error" >&2
-            echo "=== response.txt tail ===" >&2
-            tail -n 60 response.txt >&2
             exit 1
           fi
 
@@ -294,7 +292,7 @@ jobs:
           # reaching column zero in a quoted block would decide the gate if
           # the first match won. Section 6 puts the authoritative verdict
           # last, so read the final match.
-          line="$(grep -E '^[#*\s]*VERDICT[*:\s]+(APPROVE|BLOCK|NEEDS-HUMAN)' response.txt | tail -1 || true)"
+          line="$(grep -E '^VERDICT:' response.txt | tail -1 || true)"
           if [ -z "$line" ]; then
             echo "No VERDICT: line found in response. PR mode requires one." >&2
             exit 1
@@ -305,17 +303,16 @@ jobs:
             echo "$line"
             echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
-          if echo "$line" | grep -q "APPROVE"; then
-            verdict_token="APPROVE"
-          elif echo "$line" | grep -q "BLOCK"; then
-            verdict_token="BLOCK"
-          elif echo "$line" | grep -q "NEEDS-HUMAN"; then
-            verdict_token="NEEDS-HUMAN"
-          else
-            echo "Unrecognized verdict token in '$line'." \
-              "Section 6 allows APPROVE, BLOCK, or NEEDS-HUMAN." >&2
-            exit 1
-          fi
+          # Read the token alone. Searching the whole line matches the reason
+          # too, which both fails closed on
+          # 'VERDICT: APPROVE - resolved earlier BLOCK findings' and fails
+          # open on an unrecognized token, because 'VERDICT: REJECT' matches
+          # neither alternative and would merge.
+          rest="${line#VERDICT:}"
+          # Word splitting is what takes the token off the front here.
+          # shellcheck disable=SC2086
+          set -- $rest
+          verdict_token="${1:-}"
           case "$verdict_token" in
             APPROVE)
               echo "blocked=false" >> "$GITHUB_OUTPUT"

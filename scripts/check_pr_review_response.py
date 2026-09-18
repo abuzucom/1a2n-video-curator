@@ -24,21 +24,17 @@ class ResponseError(ValueError):
 
 def _last_verdict(lines: list[str]) -> tuple[str, str]:
     for line in reversed(lines):
-        clean = line.strip()
-        match = re.search(r"^[#*\s]*VERDICT[*:\s]+(APPROVE|BLOCK|NEEDS-HUMAN)\b", clean)
+        match = VERDICT_PATTERN.fullmatch(line.strip())
         if match:
-            verdict = match.group(1)
-            return verdict, f"VERDICT: {verdict}"
+            return match.group(1), line.strip()
     raise ResponseError("no valid final VERDICT line")
 
 
 def _parse_json_line(lines: list[str]) -> dict[str, Any]:
     for line in reversed(lines):
-        clean = line.strip()
-        match = re.search(r"VERDICT_JSON[*:\s]+(\{.*\})", clean)
-        if not match:
+        if not line.startswith("VERDICT_JSON:"):
             continue
-        payload = match.group(1).rstrip("`* ")
+        payload = line[len("VERDICT_JSON:"):].lstrip()
         try:
             result = json.loads(payload)
         except json.JSONDecodeError as error:
