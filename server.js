@@ -38,9 +38,12 @@ const MIME = {
 
 // Static files served from this directory. Fixed keys, so no user path input.
 const ASSETS = {
-  '/':           ['index.html', 'text/html; charset=utf-8'],
-  '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
-  '/app.js':     ['app.js',     'text/javascript; charset=utf-8'],
+  '/':                            ['index.html',                   'text/html; charset=utf-8'],
+  '/styles.css':                  ['styles.css',                  'text/css; charset=utf-8'],
+  '/app.js':                      ['app.js',                      'text/javascript; charset=utf-8'],
+  '/fonts/LibreFranklin.woff2':   ['fonts/LibreFranklin.woff2',   'font/woff2'],
+  '/fonts/Cousine-Regular.woff2': ['fonts/Cousine-Regular.woff2', 'font/woff2'],
+  '/fonts/Cousine-Bold.woff2':    ['fonts/Cousine-Bold.woff2',    'font/woff2'],
 };
 
 function isGuiAvailable() {

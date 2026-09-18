@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] (2026-09-18)
+
+### Added
+
+- Adopted the `abuzucom/viim` brand and visual identity conventions.
+- Added self-hosted `Libre Franklin` and `Cousine` WOFF2 fonts served
+  directly by `server.js` for offline, zero-dependency typography.
+- Implemented `abuzucom/viim` Dark, Grey, and Light theme variants with a
+  header theme switcher persisting preference to `localStorage`.
+- Styled triage buttons with strict monochromatic visual hierarchy.
+
+### Changed
+
+- Replaced non-conforming emojis with text labels.
+- Replaced non-conforming prose punctuation with conforming phrasing.
+
 ## [1.2.0] (2026-09-18)
 
 ### Added
