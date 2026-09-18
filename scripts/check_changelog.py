@@ -12,6 +12,9 @@ except ModuleNotFoundError:
     from trusted_git import run_git
 
 VERSION_PATTERN = re.compile(r"^## \[(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\] \((\d{4}-\d{2}-\d{2})\)$")
+LEGACY_VERSION_PATTERN = re.compile(
+    r"^## \[(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\](?::| -) .+$"
+)
 HEADING_PATTERN = re.compile(r"^## \[.+\](?: .*)?$")
 UNRELEASED_PATTERN = re.compile(r"^## \[Unreleased\]$")
 REVISION_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{7,40}|[A-Za-z0-9_./~^\-]+)$")
@@ -85,6 +88,8 @@ def _first_version(text: str) -> tuple[int, int, int, int, tuple] | None:
     """Return the first release version in changelog text."""
     for line in text.splitlines():
         match = VERSION_PATTERN.fullmatch(line)
+        if match is None:
+            match = LEGACY_VERSION_PATTERN.fullmatch(line)
         if match:
             return _version_key(match)
     return None
